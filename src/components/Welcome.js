@@ -12,6 +12,17 @@ const Welcome = () => {
   const [user, setUser] = useState(null)
   const [userRole, setUserRole] = useState(null)
   
+  // Estados para alterar senha
+  const [showChangePasswordForm, setShowChangePasswordForm] = useState(false)
+  const [changePasswordData, setChangePasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  })
+  const [passwordError, setPasswordError] = useState('')
+  const [passwordSuccess, setPasswordSuccess] = useState('')
+  const [showLogoutConfirmation, setShowLogoutConfirmation] = useState(false)
+  
   // Estados para clientes
   const [clientes, setClientes] = useState([])
   const [showClienteForm, setShowClienteForm] = useState(false)
@@ -280,6 +291,115 @@ const Welcome = () => {
     })
   }
 
+  // Funções para alterar senha
+  const openChangePasswordForm = () => {
+    setShowChangePasswordForm(true)
+    setChangePasswordData({
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: ''
+    })
+    setPasswordError('')
+    setPasswordSuccess('')
+  }
+
+  const closeChangePasswordForm = () => {
+    setShowChangePasswordForm(false)
+    setChangePasswordData({
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: ''
+    })
+    setPasswordError('')
+    setPasswordSuccess('')
+  }
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault()
+    setPasswordError('')
+    setPasswordSuccess('')
+
+    // Validações
+    if (!changePasswordData.currentPassword.trim()) {
+      setPasswordError('Senha atual é obrigatória')
+      return
+    }
+
+    if (!changePasswordData.newPassword.trim()) {
+      setPasswordError('Nova senha é obrigatória')
+      return
+    }
+
+    if (changePasswordData.newPassword.length < 6) {
+      setPasswordError('Nova senha deve ter pelo menos 6 caracteres')
+      return
+    }
+
+    if (changePasswordData.newPassword !== changePasswordData.confirmPassword) {
+      setPasswordError('As senhas não coincidem')
+      return
+    }
+
+    try {
+      // Primeiro, verificar se a senha atual está correta
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: changePasswordData.currentPassword
+      })
+
+      if (signInError) {
+        setPasswordError('Senha atual incorreta')
+        return
+      }
+
+      // Alterar a senha
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: changePasswordData.newPassword
+      })
+
+      if (updateError) {
+        throw updateError
+      }
+
+      setPasswordSuccess('Senha alterada com sucesso!')
+      
+      // Fechar o formulário após 2 segundos
+      setTimeout(() => {
+        closeChangePasswordForm()
+      }, 2000)
+
+    } catch (error) {
+      console.error('Erro ao alterar senha:', error)
+      setPasswordError('Erro ao alterar senha: ' + error.message)
+    }
+  }
+
+  // Funções para confirmação de saída
+  const openLogoutConfirmation = () => {
+    setShowLogoutConfirmation(true)
+  }
+
+  const closeLogoutConfirmation = () => {
+    setShowLogoutConfirmation(false)
+  }
+
+  const confirmLogout = async () => {
+    try {
+      // Fechar o modal primeiro
+      closeLogoutConfirmation()
+      
+      // Fazer logout
+      await supabase.auth.signOut()
+      
+      // O redirecionamento será feito automaticamente pelo useEffect
+      // que monitora mudanças no estado de autenticação
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error)
+      // Em caso de erro, mostrar notificação
+      showNotification('Erro ao fazer logout: ' + error.message, 'error')
+    }
+  }
+
   // Funções para cargos
   const handleEditCargo = (cargo) => {
     // Verificar se o usuário pode editar este cargo
@@ -486,6 +606,21 @@ const Welcome = () => {
     }
   }
   
+  // Monitorar mudanças na autenticação
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        // Usuário fez logout, redirecionar para login
+        navigate('/login')
+      } else if (event === 'SIGNED_IN' && session?.user) {
+        // Usuário fez login, atualizar estado
+        setUser(session.user)
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [navigate])
+
   // Carregar dados iniciais
   useEffect(() => {
     const loadInitialData = async () => {
@@ -973,47 +1108,189 @@ const Welcome = () => {
   
   // Renderizar dashboard
   const renderDashboard = () => (
-    <div className="menu-content">
+    <div className="menu-content dashboard-enhanced">
       <div className="menu-header">
-        <h2>Dashboard</h2>
-        <p>Bem-vindo ao sistema de gestão de clientes e presenças</p>
+        <div className="welcome-section">
+          <h2>🎉 Bem-vindo ao TecSol Sistema</h2>
+          <p className="welcome-subtitle">Sistema completo de gestão para sua empresa</p>
+          <div className="welcome-time">
+            <span className="time-icon">🕐</span>
+            <span>{new Date().toLocaleDateString('pt-BR', { 
+              weekday: 'long', 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            })}</span>
+          </div>
+        </div>
       </div>
       
       <div className="dashboard-stats">
-        <div className="stat-card">
-          <h3>{clientes.length}</h3>
-          <p>Total de Clientes</p>
+        <div className="stat-card primary">
+          <div className="stat-icon">👥</div>
+          <div className="stat-content">
+            <h3>{clientes.length}</h3>
+            <p>Total de Clientes</p>
+            <span className="stat-trend">📈 Ativos no sistema</span>
+          </div>
         </div>
-        <div className="stat-card">
-          <h3>{presencas.length}</h3>
-          <p>Total de Presenças</p>
+        
+        <div className="stat-card success">
+          <div className="stat-icon">📋</div>
+          <div className="stat-content">
+            <h3>{presencas.length}</h3>
+            <p>Presenças Registradas</p>
+            <span className="stat-trend">📅 Controle de frequência</span>
+          </div>
         </div>
-        <div className="stat-card">
-          <h3>{equipes.length}</h3>
-          <p>Total de Equipes</p>
+        
+        <div className="stat-card info">
+          <div className="stat-icon">👷</div>
+          <div className="stat-content">
+            <h3>{colaboradores.length}</h3>
+            <p>Colaboradores</p>
+            <span className="stat-trend">⚡ Equipe ativa</span>
+          </div>
         </div>
-        <div className="stat-card">
-          <h3>{colaboradores.length}</h3>
-          <p>Total de Colaboradores</p>
+        
+        <div className="stat-card warning">
+          <div className="stat-icon">🚗</div>
+          <div className="stat-content">
+            <h3>{veiculos.length}</h3>
+            <p>Veículos</p>
+            <span className="stat-trend">🛣️ Frota disponível</span>
+          </div>
         </div>
-        <div className="stat-card">
-          <h3>{usuarios.length}</h3>
-          <p>Total de Usuários</p>
+        
+        <div className="stat-card secondary">
+          <div className="stat-icon">🎯</div>
+          <div className="stat-content">
+            <h3>{cargos.length}</h3>
+            <p>Cargos</p>
+            <span className="stat-trend">👔 Estrutura organizacional</span>
+          </div>
         </div>
-        <div className="stat-card">
-          <h3>{cargos.length}</h3>
-          <p>Total de Cargos</p>
-        </div>
-        <div className="stat-card">
-          <h3>{veiculos.length}</h3>
-          <p>Total de Veículos</p>
+        
+        <div className="stat-card accent">
+          <div className="stat-icon">👤</div>
+          <div className="stat-content">
+            <h3>{usuarios.length}</h3>
+            <p>Usuários</p>
+            <span className="stat-trend">🔐 Acesso ao sistema</span>
+          </div>
         </div>
       </div>
       
-      <div className="quick-actions">
+      <div className="dashboard-sections">
+        <div className="section-row">
+          <div className="quick-actions-section">
+            <h3>🚀 Ações Rápidas</h3>
+            <div className="quick-actions-grid">
+              <button 
+                onClick={() => setCurrentView('clientes')} 
+                className="quick-action-card"
+              >
+                <div className="action-icon">➕</div>
+                <span>Novo Cliente</span>
+              </button>
+              
+              <button 
+                onClick={() => setCurrentView('presenca')} 
+                className="quick-action-card"
+              >
+                <div className="action-icon">📅</div>
+                <span>Nova Presença</span>
+              </button>
+              
+              <button 
+                onClick={() => setCurrentView('colaboradores')} 
+                className="quick-action-card"
+              >
+                <div className="action-icon">👷</div>
+                <span>Novo Colaborador</span>
+              </button>
+              
+              <button 
+                onClick={() => setCurrentView('usuarios')} 
+                className="quick-action-card"
+              >
+                <div className="action-icon">👤</div>
+                <span>Novo Usuário</span>
+              </button>
+            </div>
+          </div>
+          
+          <div className="system-info-section">
+            <h3>ℹ️ Informações do Sistema</h3>
+            <div className="info-cards">
+              <div className="info-card">
+                <div className="info-icon">🔒</div>
+                <div className="info-content">
+                  <h4>Segurança</h4>
+                  <p>Sistema protegido com autenticação avançada</p>
+                </div>
+              </div>
+              
+              <div className="info-card">
+                <div className="info-icon">📱</div>
+                <div className="info-content">
+                  <h4>Responsivo</h4>
+                  <p>Interface adaptável para todos os dispositivos</p>
+                </div>
+              </div>
+              
+              <div className="info-card">
+                <div className="info-icon">⚡</div>
+                <div className="info-content">
+                  <h4>Performance</h4>
+                  <p>Otimizado para máxima velocidade</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="recent-activity-section">
+          <h3>📊 Atividade Recente</h3>
+          <div className="activity-summary">
+            <div className="activity-item">
+              <span className="activity-icon">👥</span>
+              <span className="activity-text">
+                <strong>{clientes.filter(c => c.status === 'pendente').length}</strong> clientes pendentes
+              </span>
+            </div>
+            
+            <div className="activity-item">
+              <span className="activity-icon">📅</span>
+              <span className="activity-text">
+                <strong>{presencas.filter(p => {
+                  const presencaDate = new Date(p.data_presenca);
+                  const today = new Date();
+                  const diffTime = Math.abs(today - presencaDate);
+                  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                  return diffDays <= 7;
+                }).length}</strong> presenças esta semana
+              </span>
+            </div>
+            
+            <div className="activity-item">
+              <span className="activity-icon">👷</span>
+              <span className="activity-text">
+                <strong>{colaboradores.filter(c => c.ativo).length}</strong> colaboradores ativos
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div className="dashboard-footer">
         <p className="dashboard-description">
-          Use o menu de navegação acima para acessar as diferentes funcionalidades do sistema.
+          💡 <strong>Dica:</strong> Use o menu de navegação acima para acessar todas as funcionalidades do sistema.
         </p>
+        <div className="footer-stats">
+          <span className="footer-stat">🔄 Última atualização: {new Date().toLocaleTimeString('pt-BR')}</span>
+          <span className="footer-stat">👤 Logado como: {user?.nome || user?.email}</span>
+        </div>
       </div>
     </div>
   )
@@ -1667,9 +1944,15 @@ const Welcome = () => {
         </div>
         
         {/* Menu de navegação */}
-        <nav className="welcome-nav">
+        <nav className="welcome-nav enhanced-header">
           <div className="nav-brand">
-            <h1>🏗️ TecSol Sistema</h1>
+            <div className="brand-logo">
+              <div className="logo-icon">🏗️</div>
+              <div className="brand-text">
+                <h1 className="brand-title">TecSol Sistema</h1>
+                <span className="brand-subtitle">Gestão Inteligente</span>
+              </div>
+            </div>
           </div>
           
           <div className="nav-menu">
@@ -1677,7 +1960,8 @@ const Welcome = () => {
               onClick={() => setCurrentView('dashboard')} 
               className={`nav-item ${currentView === 'dashboard' ? 'active' : ''}`}
             >
-              📊 Dashboard
+              <span className="nav-icon">📊</span>
+              <span className="nav-text">Dashboard</span>
             </button>
             
             {security.canAccessMenu(userRole, 'clientes') && (
@@ -1685,7 +1969,8 @@ const Welcome = () => {
                 onClick={() => setCurrentView('clientes')} 
                 className={`nav-item ${currentView === 'clientes' ? 'active' : ''}`}
               >
-                👥 Clientes
+                <span className="nav-icon">👥</span>
+                <span className="nav-text">Clientes</span>
               </button>
             )}
             
@@ -1694,7 +1979,8 @@ const Welcome = () => {
                 onClick={() => setCurrentView('presenca')} 
                 className={`nav-item ${currentView === 'presenca' ? 'active' : ''}`}
               >
-                📋 Presenças
+                <span className="nav-icon">📋</span>
+                <span className="nav-text">Presenças</span>
               </button>
             )}
             
@@ -1703,7 +1989,8 @@ const Welcome = () => {
                 onClick={() => setCurrentView('colaboradores')} 
                 className={`nav-item ${currentView === 'colaboradores' ? 'active' : ''}`}
               >
-                👷 Colaboradores
+                <span className="nav-icon">👷</span>
+                <span className="nav-text">Colaboradores</span>
               </button>
             )}
             
@@ -1712,7 +1999,8 @@ const Welcome = () => {
                 onClick={() => setCurrentView('usuarios')} 
                 className={`nav-item ${currentView === 'usuarios' ? 'active' : ''}`}
               >
-                👤 Usuários
+                <span className="nav-icon">👤</span>
+                <span className="nav-text">Usuários</span>
               </button>
             )}
             
@@ -1721,7 +2009,8 @@ const Welcome = () => {
                 onClick={() => setCurrentView('cargos')} 
                 className={`nav-item ${currentView === 'cargos' ? 'active' : ''}`}
               >
-                🎯 Cargos
+                <span className="nav-icon">🎯</span>
+                <span className="nav-text">Cargos</span>
               </button>
             )}
             
@@ -1730,19 +2019,33 @@ const Welcome = () => {
                 onClick={() => setCurrentView('veiculos')} 
                 className={`nav-item ${currentView === 'veiculos' ? 'active' : ''}`}
               >
-                🚗 Veículos
+                <span className="nav-icon">🚗</span>
+                <span className="nav-text">Veículos</span>
               </button>
             )}
           </div>
           
           <div className="nav-user">
             <div className="user-info">
-              <span className="user-name">👤 {user?.nome || user?.email || 'Usuário'}</span>
-              <span className="user-role">({userRole || 'Usuário'})</span>
+              <div className="user-avatar">
+                <span className="avatar-icon">👤</span>
+              </div>
+              <div className="user-details">
+                <span className="user-name">{user?.nome || user?.email || 'Usuário'}</span>
+                <span className="user-role">{userRole || 'Usuário'}</span>
+              </div>
             </div>
-            <button onClick={() => supabase.auth.signOut()} className="logout-button">
-              🚪 Sair
-            </button>
+            
+            <div className="user-actions">
+              <button onClick={openChangePasswordForm} className="change-password-button">
+                <span className="button-icon">🔐</span>
+                <span className="button-text">Alterar Senha</span>
+              </button>
+                              <button onClick={openLogoutConfirmation} className="logout-button">
+                  <span className="button-icon">🚪</span>
+                  <span className="button-text">Sair</span>
+                </button>
+            </div>
           </div>
         </nav>
         
@@ -2230,6 +2533,104 @@ const Welcome = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+        
+        {/* Modal para Alterar Senha */}
+        {showChangePasswordForm && (
+          <div className="form-overlay">
+            <div className="form-modal">
+              <div className="modal-header">
+                <h3>🔐 Alterar Senha</h3>
+                <button onClick={closeChangePasswordForm} className="close-button">×</button>
+              </div>
+              
+              <form onSubmit={handleChangePassword} className="change-password-form">
+                <div className="form-group">
+                  <label htmlFor="currentPassword">Senha Atual: *</label>
+                  <input
+                    type="password"
+                    id="currentPassword"
+                    value={changePasswordData.currentPassword}
+                    onChange={(e) => setChangePasswordData({...changePasswordData, currentPassword: e.target.value})}
+                    placeholder="Digite sua senha atual"
+                    required
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="newPassword">Nova Senha: *</label>
+                  <input
+                    type="password"
+                    id="newPassword"
+                    value={changePasswordData.newPassword}
+                    onChange={(e) => setChangePasswordData({...changePasswordData, newPassword: e.target.value})}
+                    placeholder="Digite a nova senha (mín. 6 caracteres)"
+                    required
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="confirmPassword">Confirmar Nova Senha: *</label>
+                  <input
+                    type="password"
+                    id="confirmPassword"
+                    value={changePasswordData.confirmPassword}
+                    onChange={(e) => setChangePasswordData({...changePasswordData, confirmPassword: e.target.value})}
+                    placeholder="Confirme a nova senha"
+                    required
+                  />
+                </div>
+                
+                {passwordError && (
+                  <div className="error-message">
+                    ❌ {passwordError}
+                  </div>
+                )}
+                
+                {passwordSuccess && (
+                  <div className="success-message">
+                    ✅ {passwordSuccess}
+                  </div>
+                )}
+                
+                <div className="form-actions">
+                  <button type="button" onClick={closeChangePasswordForm} className="cancel-button">
+                    Cancelar
+                  </button>
+                  <button type="submit" className="submit-button">
+                    Alterar Senha
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+        
+        {/* Modal de confirmação de saída */}
+        {showLogoutConfirmation && (
+          <div className="form-overlay">
+            <div className="form-modal logout-confirmation-modal">
+              <div className="modal-header">
+                <h3>🚪 Confirmar Saída</h3>
+                <button onClick={closeLogoutConfirmation} className="close-button">×</button>
+              </div>
+
+              <div className="logout-confirmation-content">
+                <div className="logout-icon">🚪</div>
+                <h4>Tem certeza que deseja sair?</h4>
+                <p>Você será desconectado do sistema e redirecionado para a tela de login.</p>
+              </div>
+
+              <div className="form-actions">
+                <button type="button" onClick={closeLogoutConfirmation} className="cancel-button">
+                  ❌ Cancelar
+                </button>
+                <button type="button" onClick={confirmLogout} className="confirm-logout-button">
+                  ✅ Sim, Sair
+                </button>
+              </div>
             </div>
           </div>
         )}
