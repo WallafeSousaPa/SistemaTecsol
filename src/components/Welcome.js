@@ -37,8 +37,13 @@ const Welcome = () => {
     id_profiles: [],
     equipe_id: '',
     data_cadastro: new Date().toISOString().split('T')[0],
+    quantidade_modulos: 0,
+    deslocamento_material: false,
+    configuracao_inversor: false,
+    obra_civil: 'nao',
     obra_cancelada: false,
     nota_material: false,
+    observacoes: '',
     status: 'pendente'
   })
   
@@ -59,6 +64,24 @@ const Welcome = () => {
   
   // Estados para tipos de serviço
   const [tiposServico, setTiposServico] = useState([])
+  
+     // Estados para tipos de padrão
+   const [tiposPadrao, setTiposPadrao] = useState([])
+   
+   // Estados para formulários de tipos
+   const [showTipoServicoForm, setShowTipoServicoForm] = useState(false)
+   const [editingTipoServico, setEditingTipoServico] = useState(null)
+   const [tipoServicoFormData, setTipoServicoFormData] = useState({
+     nome: '',
+     ativo: true
+   })
+   
+   const [showTipoPadraoForm, setShowTipoPadraoForm] = useState(false)
+   const [editingTipoPadrao, setEditingTipoPadrao] = useState(null)
+   const [tipoPadraoFormData, setTipoPadraoFormData] = useState({
+     nome: '',
+     ativo: true
+   })
   
   // Estados para usuários instaladores
   const [usuariosInstaladores, setUsuariosInstaladores] = useState([])
@@ -121,6 +144,7 @@ const Welcome = () => {
   const [showPresencaWarningModal, setShowPresencaWarningModal] = useState(false)
   const [clienteParaExcluir, setClienteParaExcluir] = useState(null)
   const [presencasCliente, setPresencasCliente] = useState([])
+  const [showHamburgerMenu, setShowHamburgerMenu] = useState(false)
   
   // Função para mostrar notificações
   const showNotification = (message, type = 'info') => {
@@ -400,6 +424,20 @@ const Welcome = () => {
     }
   }
 
+  // Funções para menu hambúrguer
+  const toggleHamburgerMenu = () => {
+    setShowHamburgerMenu(!showHamburgerMenu)
+  }
+
+  const closeHamburgerMenu = () => {
+    setShowHamburgerMenu(false)
+  }
+
+  const handleNavItemClick = (view) => {
+    setCurrentView(view)
+    closeHamburgerMenu()
+  }
+
   // Funções para cargos
   const handleEditCargo = (cargo) => {
     // Verificar se o usuário pode editar este cargo
@@ -559,16 +597,166 @@ const Welcome = () => {
     }
   }
 
-  // Fechar formulário de veículo
-  const closeVeiculoForm = () => {
-    setShowVeiculoForm(false)
-    setEditingVeiculo(null)
-    setVeiculoFormData({
-      veiculo: '',
-      placa: '',
-      ativo: true
-    })
-  }
+     // Fechar formulário de veículo
+   const closeVeiculoForm = () => {
+     setShowVeiculoForm(false)
+     setEditingVeiculo(null)
+     setVeiculoFormData({
+       veiculo: '',
+       placa: '',
+       ativo: true
+     })
+   }
+   
+   // Funções para tipos de serviço
+   const handleEditTipoServico = (tipo) => {
+     setEditingTipoServico(tipo)
+     setTipoServicoFormData({
+       nome: tipo.nome || '',
+       ativo: tipo.ativo !== undefined ? tipo.ativo : true
+     })
+     setShowTipoServicoForm(true)
+   }
+   
+   const handleDeleteTipoServico = async (tipo) => {
+     if (!window.confirm(`Tem certeza que deseja excluir o tipo de serviço "${tipo.nome}"?`)) {
+       return
+     }
+     
+     try {
+       const { error } = await supabase
+         .from('tipo_servico')
+         .delete()
+         .eq('id', tipo.id)
+       
+       if (error) throw error
+       
+       showNotification('Tipo de serviço excluído com sucesso!', 'success')
+       loadTiposServico()
+     } catch (error) {
+       console.error('Erro ao excluir tipo de serviço:', error)
+       showNotification('Erro ao excluir tipo de serviço: ' + error.message, 'error')
+     }
+   }
+   
+   // Salvar tipo de serviço
+   const handleTipoServicoFormSubmit = async (e) => {
+     e.preventDefault()
+     
+     try {
+       if (editingTipoServico) {
+         // Atualizar tipo de serviço existente
+         const { error } = await supabase
+           .from('tipo_servico')
+           .update(tipoServicoFormData)
+           .eq('id', editingTipoServico.id)
+         
+         if (error) throw error
+         
+         showNotification('Tipo de serviço atualizado com sucesso!', 'success')
+       } else {
+         // Criar novo tipo de serviço
+         const { error } = await supabase
+           .from('tipo_servico')
+           .insert([tipoServicoFormData])
+         
+         if (error) throw error
+         
+         showNotification('Tipo de serviço cadastrado com sucesso!', 'success')
+       }
+       
+       closeTipoServicoForm()
+       loadTiposServico()
+     } catch (error) {
+       console.error('Erro ao salvar tipo de serviço:', error)
+       showNotification('Erro ao salvar tipo de serviço: ' + error.message, 'error')
+     }
+   }
+   
+   // Fechar formulário de tipo de serviço
+   const closeTipoServicoForm = () => {
+     setShowTipoServicoForm(false)
+     setEditingTipoServico(null)
+     setTipoServicoFormData({
+       nome: '',
+       ativo: true
+     })
+   }
+   
+   // Funções para tipos de padrão
+   const handleEditTipoPadrao = (tipo) => {
+     setEditingTipoPadrao(tipo)
+     setTipoPadraoFormData({
+       nome: tipo.nome || '',
+       ativo: tipo.ativo !== undefined ? tipo.ativo : true
+     })
+     setShowTipoPadraoForm(true)
+   }
+   
+   const handleDeleteTipoPadrao = async (tipo) => {
+     if (!window.confirm(`Tem certeza que deseja excluir o tipo de padrão "${tipo.nome}"?`)) {
+       return
+     }
+     
+     try {
+       const { error } = await supabase
+         .from('tipo_padrao')
+         .delete()
+         .eq('id', tipo.id)
+       
+       if (error) throw error
+       
+       showNotification('Tipo de padrão excluído com sucesso!', 'success')
+       loadTiposPadrao()
+     } catch (error) {
+       console.error('Erro ao excluir tipo de padrão:', error)
+       showNotification('Erro ao excluir tipo de padrão: ' + error.message, 'error')
+     }
+   }
+   
+   // Salvar tipo de padrão
+   const handleTipoPadraoFormSubmit = async (e) => {
+     e.preventDefault()
+     
+     try {
+       if (editingTipoPadrao) {
+         // Atualizar tipo de padrão existente
+         const { error } = await supabase
+           .from('tipo_padrao')
+           .update(tipoPadraoFormData)
+           .eq('id', editingTipoPadrao.id)
+         
+         if (error) throw error
+         
+         showNotification('Tipo de padrão atualizado com sucesso!', 'success')
+       } else {
+         // Criar novo tipo de padrão
+         const { error } = await supabase
+           .from('tipo_padrao')
+           .insert([tipoPadraoFormData])
+         
+         if (error) throw error
+         
+         showNotification('Tipo de padrão cadastrado com sucesso!', 'success')
+       }
+       
+       closeTipoPadraoForm()
+       loadTiposPadrao()
+     } catch (error) {
+       console.error('Erro ao salvar tipo de padrão:', error)
+       showNotification('Erro ao salvar tipo de padrão: ' + error.message, 'error')
+     }
+   }
+   
+   // Fechar formulário de tipo de padrão
+   const closeTipoPadraoForm = () => {
+     setShowTipoPadraoForm(false)
+     setEditingTipoPadrao(null)
+     setTipoPadraoFormData({
+       nome: '',
+       ativo: true
+     })
+   }
 
   // Funções auxiliares de segurança
   const isAdministrador = () => {
@@ -648,6 +836,7 @@ const Welcome = () => {
         await Promise.all([
           loadEquipes(),
           loadTiposServico(),
+          loadTiposPadrao(),
           loadUsuariosInstaladores()
         ])
       } catch (error) {
@@ -673,20 +862,37 @@ const Welcome = () => {
     }
   }
   
-  // Carregar tipos de serviço
-  const loadTiposServico = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('tipo_servico')
-        .select('*')
-        .order('nome')
-      
-      if (error) throw error
-      setTiposServico(data || [])
-    } catch (error) {
-      console.error('Erro ao carregar tipos de serviço:', error)
-    }
-  }
+     // Carregar tipos de serviço
+   const loadTiposServico = async () => {
+     try {
+       const { data, error } = await supabase
+         .from('tipo_servico')
+         .select('*')
+         .eq('ativo', true)
+         .order('nome')
+       
+       if (error) throw error
+       setTiposServico(data || [])
+     } catch (error) {
+       console.error('Erro ao carregar tipos de serviço:', error)
+     }
+   }
+   
+   // Carregar tipos de padrão
+   const loadTiposPadrao = async () => {
+     try {
+       const { data, error } = await supabase
+         .from('tipo_padrao')
+         .select('*')
+         .eq('ativo', true)
+         .order('nome')
+       
+       if (error) throw error
+       setTiposPadrao(data || [])
+     } catch (error) {
+       console.error('Erro ao carregar tipos de padrão:', error)
+     }
+   }
   
   // Carregar usuários instaladores
   const loadUsuariosInstaladores = async () => {
@@ -727,8 +933,8 @@ const Welcome = () => {
         .from('clientes')
         .select(`
           *,
-          tipo_servico:tipo_servico_id(nome),
-          tipo_padrao:tipo_padrao_id(nome),
+          tipo_servico:tipo_servico_id(id, nome),
+          tipo_padrao:tipo_padrao_id(id, nome),
           profiles:clientes_usuarios!cliente_id(profile:profile_id(nome)),
           equipe:equipe_id(nome)
         `)
@@ -875,8 +1081,13 @@ const Welcome = () => {
       id_profiles: [],
       equipe_id: '',
       data_cadastro: new Date().toISOString().split('T')[0],
+      quantidade_modulos: 0,
+      deslocamento_material: false,
+      configuracao_inversor: false,
+      obra_civil: 'nao',
       obra_cancelada: false,
       nota_material: false,
+      observacoes: '',
       status: 'pendente'
     })
     setShowClienteForm(true)
@@ -896,8 +1107,13 @@ const Welcome = () => {
       id_profiles: [],
       equipe_id: '',
       data_cadastro: new Date().toISOString().split('T')[0],
+      quantidade_modulos: 0,
+      deslocamento_material: false,
+      configuracao_inversor: false,
+      obra_civil: 'nao',
       obra_cancelada: false,
       nota_material: false,
+      observacoes: '',
       status: 'pendente'
     })
   }
@@ -949,8 +1165,13 @@ const Welcome = () => {
       id_profiles: cliente.id_profiles || [],
       equipe_id: cliente.equipe_id || '',
       data_cadastro: cliente.data_cadastro || new Date().toISOString().split('T')[0],
+      quantidade_modulos: cliente.quantidade_modulos || 0,
+      deslocamento_material: cliente.deslocamento_material || false,
+      configuracao_inversor: cliente.configuracao_inversor || false,
+      obra_civil: cliente.obra_civil || 'nao',
       obra_cancelada: cliente.obra_cancelada || false,
       nota_material: cliente.nota_material || false,
+      observacoes: cliente.observacoes || '',
       status: cliente.status || 'pendente'
     })
     setShowClienteForm(true)
@@ -1296,155 +1517,164 @@ const Welcome = () => {
   )
   
   // Renderizar lista de clientes
-  const renderClientes = () => (
-    <div className="menu-content">
-      <div className="menu-header">
-        <h2>Cadastro de Clientes</h2>
-        <button onClick={() => setCurrentView('dashboard')} className="back-button">
-          ← Voltar ao Dashboard
-        </button>
-      </div>
-      
-      {security.canAccessMenu(userRole, 'clientes') && (
+  const renderClientes = () => {
+    // Verificar se o usuário tem permissão para visualizar clientes (apenas administrador e administrativo)
+    if (!['administrador', 'administrativo'].includes(userRole)) {
+      return (
+        <div className="menu-content">
+          <div className="menu-header">
+            <h2>Cadastro de Clientes</h2>
+            <button onClick={() => setCurrentView('dashboard')} className="back-button">
+              ← Voltar ao Dashboard
+            </button>
+          </div>
+          
+          <div className="access-denied-message">
+            <div className="access-denied-icon">🚫</div>
+            <h3>Acesso Negado</h3>
+            <p>Você não tem permissão para visualizar esta seção.</p>
+            <p>Apenas usuários com perfil Administrador ou Administrativo podem acessar o cadastro de clientes.</p>
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div className="menu-content">
+        <div className="menu-header">
+          <h2>Cadastro de Clientes</h2>
+          <button onClick={() => setCurrentView('dashboard')} className="back-button">
+            ← Voltar ao Dashboard
+          </button>
+        </div>
+        
         <div className="clientes-actions">
           <button onClick={openNewClienteForm} className="action-button primary">
             ➕ Cadastrar Novo Cliente
           </button>
         </div>
-      )}
-      
-      {/* Filtros de Pesquisa */}
-      <div className="filtros-container">
-        <h3>🔍 Filtros de Pesquisa</h3>
-        <div className="filtros-grid">
-          <div className="filtro-item">
-            <label htmlFor="filtro-nome">Nome do Cliente:</label>
-            <input
-              type="text"
-              id="filtro-nome"
-              value={filtrosCliente.nome_cliente}
-              onChange={(e) => setFiltrosCliente({...filtrosCliente, nome_cliente: e.target.value})}
-              placeholder="Digite o nome do cliente"
-            />
-          </div>
-          
-          <div className="filtro-item">
-            <label htmlFor="filtro-data-inicio">Data de Instalação - Início:</label>
-            <input
-              type="date"
-              id="filtro-data-inicio"
-              value={filtrosCliente.dataInicio}
-              onChange={(e) => setFiltrosCliente({...filtrosCliente, dataInicio: e.target.value})}
-            />
-          </div>
-          
-          <div className="filtro-item">
-            <label htmlFor="filtro-data-fim">Data de Instalação - Fim:</label>
-            <input
-              type="date"
-              id="filtro-data-fim"
-              value={filtrosCliente.dataFim}
-              onChange={(e) => setFiltrosCliente({...filtrosCliente, dataFim: e.target.value})}
-            />
-          </div>
-          
-          <div className="filtro-item">
-            <label htmlFor="filtro-tipo-servico">Tipo de Serviço:</label>
-            <select
-              id="filtro-tipo-servico"
-              value={filtrosCliente.tipoServicoId}
-              onChange={(e) => setFiltrosCliente({...filtrosCliente, tipoServicoId: e.target.value})}
-            >
-              <option value="">Todos os tipos</option>
-              {tiposServico.map((tipo) => (
-                <option key={tipo.id} value={tipo.id}>{tipo.nome}</option>
-              ))}
-            </select>
+        
+        {/* Filtros de Pesquisa */}
+        <div className="filtros-container">
+          <h3>🔍 Filtros de Pesquisa</h3>
+          <div className="filtros-grid">
+            <div className="filtro-item">
+              <label htmlFor="filtro-nome">Nome do Cliente:</label>
+              <input
+                type="text"
+                id="filtro-nome"
+                value={filtrosCliente.nome_cliente}
+                onChange={(e) => setFiltrosCliente({...filtrosCliente, nome_cliente: e.target.value})}
+                placeholder="Digite o nome do cliente"
+              />
+            </div>
+            
+            <div className="filtro-item">
+              <label htmlFor="filtro-data-inicio">Data de Instalação - Início:</label>
+              <input
+                type="date"
+                id="filtro-data-inicio"
+                value={filtrosCliente.dataInicio}
+                onChange={(e) => setFiltrosCliente({...filtrosCliente, dataInicio: e.target.value})}
+              />
+            </div>
+            
+            <div className="filtro-item">
+              <label htmlFor="filtro-data-fim">Data de Instalação - Fim:</label>
+              <input
+                type="date"
+                id="filtro-data-fim"
+                value={filtrosCliente.dataFim}
+                onChange={(e) => setFiltrosCliente({...filtrosCliente, dataFim: e.target.value})}
+              />
+            </div>
+            
+            <div className="filtro-item">
+              <label htmlFor="filtro-tipo-servico">Tipo de Serviço:</label>
+              <select
+                id="filtro-tipo-servico"
+                value={filtrosCliente.tipoServicoId}
+                onChange={(e) => setFiltrosCliente({...filtrosCliente, tipoServicoId: e.target.value})}
+              >
+                <option value="">Todos os tipos</option>
+                {tiposServico.map((tipo) => (
+                  <option key={tipo.id} value={tipo.id}>{tipo.nome}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
-      </div>
-      
-      <div className="clientes-list">
-        <h3>Clientes Cadastrados ({clientesFiltrados.length} de {clientes.length})</h3>
-        <div className="table-container">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Nome do Cliente</th>
-                <th>Telefone</th>
-                <th>Endereço</th>
-                <th>Data da Instalação</th>
-                <th>Tipo de Serviço</th>
-                <th>Equipe</th>
-                <th>Status</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {clientesFiltrados.length === 0 ? (
+        
+        <div className="clientes-list">
+          <h3>Clientes Cadastrados ({clientesFiltrados.length} de {clientes.length})</h3>
+          <div className="table-container">
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <td colSpan="8" className="no-data">
-                    {clientes.length === 0 ? 'Nenhum cliente cadastrado ainda.' : 'Nenhum cliente encontrado com os filtros aplicados.'}
-                  </td>
+                  <th>Nome do Cliente</th>
+                  <th>Data da Instalação</th>
+                  <th>Tipo de Serviço</th>
+                  <th>Tipo de Padrão</th>
+                  <th>Quantidade de Módulos</th>
+                  <th>Ações</th>
                 </tr>
-              ) : (
-                clientesFiltrados.map((cliente) => (
-                  <tr key={cliente.id}>
-                    <td>{cliente.nome_cliente}</td>
-                    <td>{cliente.telefone || 'N/A'}</td>
-                    <td>{cliente.endereco || 'N/A'}</td>
-                    <td>{formatarData(cliente.data_instalacao)}</td>
-                    <td>{cliente.tipo_servico?.nome || 'N/A'}</td>
-                    <td>{cliente.equipe?.nome || 'N/A'}</td>
-                    <td>
-                      <span className={`status-badge status-${cliente.status || 'pendente'}`}>
-                        {cliente.status === 'pendente' && '⏳ Pendente'}
-                        {cliente.status === 'em_andamento' && '🚧 Em Andamento'}
-                        {cliente.status === 'finalizado' && '✅ Finalizado'}
-                        {cliente.status === 'validado' && '🔍 Validado'}
-                        {!cliente.status && '⏳ Pendente'}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="action-buttons">
-                        {security.hasPermission(userRole, 'CLIENT_MANAGEMENT', 'EDIT') && (
-                          <button 
-                            onClick={() => handleEditCliente(cliente)} 
-                            className="action-btn small"
-                            title="Editar cliente"
-                          >
-                            ✏️ Editar
-                          </button>
-                        )}
-                        
-                        {security.hasPermission(userRole, 'CLIENT_MANAGEMENT', 'REMOVE') && (
-                          <button 
-                            onClick={() => handleDeleteCliente(cliente)} 
-                            className="action-btn small danger"
-                            title="Excluir cliente"
-                          >
-                            🗑️ Remover
-                          </button>
-                        )}
-                        
-                        <button 
-                          onClick={() => openNewPresencaForm(cliente)} 
-                          className="action-btn small info"
-                          title="Nova presença"
-                        >
-                          📋 Presença
-                        </button>
-                      </div>
+              </thead>
+              <tbody>
+                {clientesFiltrados.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="no-data">
+                      {clientes.length === 0 ? 'Nenhum cliente cadastrado ainda.' : 'Nenhum cliente encontrado com os filtros aplicados.'}
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  clientesFiltrados.map((cliente) => (
+                    <tr key={cliente.id}>
+                      <td>{cliente.nome_cliente}</td>
+                      <td>{formatarData(cliente.data_instalacao)}</td>
+                      <td>{cliente.tipo_servico?.nome || 'N/A'}</td>
+                      <td>{cliente.tipo_padrao?.nome || 'N/A'}</td>
+                      <td>{cliente.quantidade_modulos || 'N/A'}</td>
+                      <td>
+                        <div className="action-buttons">
+                          {security.hasPermission(userRole, 'CLIENT_MANAGEMENT', 'EDIT') && (
+                            <button 
+                              onClick={() => handleEditCliente(cliente)} 
+                              className="action-btn small"
+                              title="Editar cliente"
+                            >
+                              ✏️ Editar
+                            </button>
+                          )}
+                          
+                          {security.hasPermission(userRole, 'CLIENT_MANAGEMENT', 'REMOVE') && (
+                            <button 
+                              onClick={() => handleDeleteCliente(cliente)} 
+                              className="action-btn small danger"
+                              title="Excluir cliente"
+                            >
+                              🗑️ Remover
+                            </button>
+                          )}
+                          
+                          <button 
+                            onClick={() => openNewPresencaForm(cliente)} 
+                            className="action-btn small info"
+                            title="Nova presença"
+                          >
+                            📋 Presença
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
-    </div>
-  )
+    )
+  }
   
   // Renderizar lista de colaboradores
   const renderColaboradores = () => (
@@ -1699,78 +1929,220 @@ const Welcome = () => {
     </div>
   )
 
-  // Renderizar lista de veículos
-  const renderVeiculos = () => (
-    <div className="menu-content">
-      <div className="menu-header">
-        <h2>Gerenciamento de Veículos</h2>
-        <button onClick={() => setCurrentView('dashboard')} className="back-button">
-          ← Voltar ao Dashboard
-        </button>
-      </div>
-      
-      <div className="veiculos-actions">
-        <button onClick={() => setShowVeiculoForm(true)} className="action-button primary">
-          ➕ Novo Veículo
-        </button>
-      </div>
-      
-      <div className="veiculos-list">
-        <h3>Veículos ({veiculos.length})</h3>
-        <div className="table-container">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Veículo</th>
-                <th>Placa</th>
-                <th>Status</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {veiculos.length === 0 ? (
-                <tr>
-                  <td colSpan="4" className="no-data">
-                    Nenhum veículo cadastrado ainda.
-                  </td>
-                </tr>
-              ) : (
-                veiculos.map((veiculo) => (
-                  <tr key={veiculo.id}>
-                    <td>{veiculo.veiculo}</td>
-                    <td>{veiculo.placa}</td>
-                    <td>
-                      <span className={`status-badge ${veiculo.ativo ? 'status-ativo' : 'status-inativo'}`}>
-                        {veiculo.ativo ? '✅ Ativo' : '❌ Inativo'}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="action-buttons">
-                        <button 
-                          onClick={() => handleEditVeiculo(veiculo)} 
-                          className="action-btn small"
-                          title="Editar veículo"
-                        >
-                          ✏️ Editar
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteVeiculo(veiculo)} 
-                          className="action-btn small danger"
-                          title="Excluir veículo"
-                        >
-                          🗑️ Remover
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  )
+     // Renderizar lista de veículos
+   const renderVeiculos = () => (
+     <div className="menu-content">
+       <div className="menu-header">
+         <h2>Gerenciamento de Veículos</h2>
+         <button onClick={() => setCurrentView('dashboard')} className="back-button">
+           ← Voltar ao Dashboard
+         </button>
+       </div>
+       
+       <div className="veiculos-actions">
+         <button onClick={() => setShowVeiculoForm(true)} className="action-button primary">
+           ➕ Novo Veículo
+         </button>
+       </div>
+       
+       <div className="veiculos-list">
+         <h3>Veículos ({veiculos.length})</h3>
+         <div className="table-container">
+           <table className="data-table">
+             <thead>
+               <tr>
+                 <th>Veículo</th>
+                 <th>Placa</th>
+                 <th>Status</th>
+                 <th>Ações</th>
+               </tr>
+             </thead>
+             <tbody>
+               {veiculos.length === 0 ? (
+                 <tr>
+                   <td colSpan="4" className="no-data">
+                     Nenhum veículo cadastrado ainda.
+                   </td>
+                 </tr>
+               ) : (
+                 veiculos.map((veiculo) => (
+                   <tr key={veiculo.id}>
+                     <td>{veiculo.veiculo}</td>
+                     <td>{veiculo.placa}</td>
+                     <td>
+                       <span className={`status-badge ${veiculo.ativo ? 'status-ativo' : 'status-inativo'}`}>
+                         {veiculo.ativo ? '✅ Ativo' : '❌ Inativo'}
+                       </span>
+                     </td>
+                     <td>
+                       <div className="action-buttons">
+                         <button 
+                           onClick={() => handleEditVeiculo(veiculo)} 
+                           className="action-btn small"
+                           title="Editar veículo"
+                         >
+                           ✏️ Editar
+                         </button>
+                         <button 
+                           onClick={() => handleDeleteVeiculo(veiculo)} 
+                           className="action-btn small danger"
+                           title="Excluir veículo"
+                         >
+                           🗑️ Remover
+                         </button>
+                       </div>
+                     </td>
+                   </tr>
+                 ))
+               )}
+             </tbody>
+           </table>
+         </div>
+       </div>
+     </div>
+   )
+   
+   // Renderizar lista de tipos de serviço
+   const renderTiposServico = () => (
+     <div className="menu-content">
+       <div className="menu-header">
+         <h2>Gerenciamento de Tipos de Serviço</h2>
+         <button onClick={() => setCurrentView('dashboard')} className="back-button">
+           ← Voltar ao Dashboard
+         </button>
+       </div>
+       
+       <div className="tipos-servico-actions">
+         <button onClick={() => setShowTipoServicoForm(true)} className="action-button primary">
+           ➕ Novo Tipo de Serviço
+         </button>
+       </div>
+       
+       <div className="tipos-servico-list">
+         <h3>Tipos de Serviço ({tiposServico.length})</h3>
+         <div className="table-container">
+           <table className="data-table">
+             <thead>
+               <tr>
+                 <th>Nome</th>
+                 <th>Status</th>
+                 <th>Ações</th>
+               </tr>
+             </thead>
+             <tbody>
+               {tiposServico.length === 0 ? (
+                 <tr>
+                   <td colSpan="3" className="no-data">
+                     Nenhum tipo de serviço cadastrado ainda.
+                   </td>
+                 </tr>
+               ) : (
+                 tiposServico.map((tipo) => (
+                   <tr key={tipo.id}>
+                     <td>{tipo.nome}</td>
+                     <td>
+                       <span className={`status-badge ${tipo.ativo ? 'status-ativo' : 'status-inativo'}`}>
+                         {tipo.ativo ? '✅ Ativo' : '❌ Inativo'}
+                       </span>
+                     </td>
+                     <td>
+                       <div className="action-buttons">
+                         <button 
+                           onClick={() => handleEditTipoServico(tipo)} 
+                           className="action-btn small"
+                           title="Editar tipo de serviço"
+                         >
+                           ✏️ Editar
+                         </button>
+                         <button 
+                           onClick={() => handleDeleteTipoServico(tipo)} 
+                           className="action-btn small danger"
+                           title="Excluir tipo de serviço"
+                         >
+                           🗑️ Remover
+                         </button>
+                       </div>
+                     </td>
+                   </tr>
+                 ))
+               )}
+             </tbody>
+           </table>
+         </div>
+       </div>
+     </div>
+   )
+   
+   // Renderizar lista de tipos de padrão
+   const renderTiposPadrao = () => (
+     <div className="menu-content">
+       <div className="menu-header">
+         <h2>Gerenciamento de Tipos de Padrão</h2>
+         <button onClick={() => setCurrentView('dashboard')} className="back-button">
+           ← Voltar ao Dashboard
+         </button>
+       </div>
+       
+       <div className="tipos-padrao-actions">
+         <button onClick={() => setShowTipoPadraoForm(true)} className="action-button primary">
+           ➕ Novo Tipo de Padrão
+         </button>
+       </div>
+       
+       <div className="tipos-padrao-list">
+         <h3>Tipos de Padrão ({tiposPadrao.length})</h3>
+         <div className="table-container">
+           <table className="data-table">
+             <thead>
+               <tr>
+                 <th>Nome</th>
+                 <th>Status</th>
+                 <th>Ações</th>
+               </tr>
+             </thead>
+             <tbody>
+               {tiposPadrao.length === 0 ? (
+                 <tr>
+                   <td colSpan="3" className="no-data">
+                     Nenhum tipo de padrão cadastrado ainda.
+                   </td>
+                 </tr>
+               ) : (
+                 tiposPadrao.map((tipo) => (
+                   <tr key={tipo.id}>
+                     <td>{tipo.nome}</td>
+                     <td>
+                       <span className={`status-badge ${tipo.ativo ? 'status-ativo' : 'status-inativo'}`}>
+                         {tipo.ativo ? '✅ Ativo' : '❌ Inativo'}
+                       </span>
+                     </td>
+                     <td>
+                       <div className="action-buttons">
+                         <button 
+                           onClick={() => handleEditTipoPadrao(tipo)} 
+                           className="action-btn small"
+                           title="Editar tipo de padrão"
+                         >
+                           ✏️ Editar
+                         </button>
+                         <button 
+                           onClick={() => handleDeleteTipoPadrao(tipo)} 
+                           className="action-btn small danger"
+                           title="Excluir tipo de padrão"
+                         >
+                           🗑️ Remover
+                         </button>
+                       </div>
+                     </td>
+                   </tr>
+                 ))
+               )}
+             </tbody>
+           </table>
+         </div>
+       </div>
+     </div>
+   )
 
   // Renderizar lista de presenças
   const renderPresenca = () => (
@@ -1863,25 +2235,29 @@ const Welcome = () => {
     }
   }, [userRole, loadClientes, loadPresencas, loadColaboradores, loadUsuarios, loadCargos, loadVeiculos])
   
-  // Renderizar conteúdo baseado na view atual
-  const renderContent = () => {
-    switch (currentView) {
-      case 'clientes':
-        return renderClientes()
-      case 'presenca':
-        return renderPresenca()
-      case 'colaboradores':
-        return renderColaboradores()
-      case 'usuarios':
-        return renderUsuarios()
-      case 'cargos':
-        return renderCargos()
-      case 'veiculos':
-        return renderVeiculos()
-      default:
-        return renderDashboard()
-    }
-  }
+     // Renderizar conteúdo baseado na view atual
+   const renderContent = () => {
+     switch (currentView) {
+       case 'clientes':
+         return renderClientes()
+       case 'presenca':
+         return renderPresenca()
+       case 'colaboradores':
+         return renderColaboradores()
+       case 'usuarios':
+         return renderUsuarios()
+       case 'cargos':
+         return renderCargos()
+       case 'veiculos':
+         return renderVeiculos()
+       case 'tipos_servico':
+         return renderTiposServico()
+       case 'tipos_padrao':
+         return renderTiposPadrao()
+       default:
+         return renderDashboard()
+     }
+   }
   
   return (
     <>
@@ -1957,72 +2333,103 @@ const Welcome = () => {
           
           <div className="nav-menu">
             <button 
-              onClick={() => setCurrentView('dashboard')} 
-              className={`nav-item ${currentView === 'dashboard' ? 'active' : ''}`}
+              onClick={toggleHamburgerMenu} 
+              className={`hamburger-button ${showHamburgerMenu ? 'active' : ''}`}
             >
-              <span className="nav-icon">📊</span>
-              <span className="nav-text">Dashboard</span>
+              <span className="hamburger-line"></span>
+              <span className="hamburger-line"></span>
+              <span className="hamburger-line"></span>
             </button>
             
-            {security.canAccessMenu(userRole, 'clientes') && (
+            <div className={`nav-dropdown ${showHamburgerMenu ? 'show' : ''}`}>
               <button 
-                onClick={() => setCurrentView('clientes')} 
-                className={`nav-item ${currentView === 'clientes' ? 'active' : ''}`}
+                onClick={() => handleNavItemClick('dashboard')} 
+                className={`nav-item ${currentView === 'dashboard' ? 'active' : ''}`}
               >
-                <span className="nav-icon">👥</span>
-                <span className="nav-text">Clientes</span>
+                <span className="nav-icon">📊</span>
+                <span className="nav-text">Dashboard</span>
               </button>
-            )}
-            
-            {security.canAccessMenu(userRole, 'presenca') && (
-              <button 
-                onClick={() => setCurrentView('presenca')} 
-                className={`nav-item ${currentView === 'presenca' ? 'active' : ''}`}
-              >
-                <span className="nav-icon">📋</span>
-                <span className="nav-text">Presenças</span>
-              </button>
-            )}
-            
-            {security.canAccessMenu(userRole, 'colaboradores') && (
-              <button 
-                onClick={() => setCurrentView('colaboradores')} 
-                className={`nav-item ${currentView === 'colaboradores' ? 'active' : ''}`}
-              >
-                <span className="nav-icon">👷</span>
-                <span className="nav-text">Colaboradores</span>
-              </button>
-            )}
-            
-            {security.canAccessMenu(userRole, 'usuarios') && (
-              <button 
-                onClick={() => setCurrentView('usuarios')} 
-                className={`nav-item ${currentView === 'usuarios' ? 'active' : ''}`}
-              >
-                <span className="nav-icon">👤</span>
-                <span className="nav-text">Usuários</span>
-              </button>
-            )}
-            
-            {security.canAccessMenu(userRole, 'cargos') && (
-              <button 
-                onClick={() => setCurrentView('cargos')} 
-                className={`nav-item ${currentView === 'cargos' ? 'active' : ''}`}
-              >
-                <span className="nav-icon">🎯</span>
-                <span className="nav-text">Cargos</span>
-              </button>
-            )}
-            
-            {security.canAccessMenu(userRole, 'veiculos') && (
-              <button 
-                onClick={() => setCurrentView('veiculos')} 
-                className={`nav-item ${currentView === 'veiculos' ? 'active' : ''}`}
-              >
-                <span className="nav-icon">🚗</span>
-                <span className="nav-text">Veículos</span>
-              </button>
-            )}
+              
+              {security.canAccessMenu(userRole, 'clientes') && (
+                <button 
+                  onClick={() => handleNavItemClick('clientes')} 
+                  className={`nav-item ${currentView === 'clientes' ? 'active' : ''}`}
+                >
+                  <span className="nav-icon">👥</span>
+                  <span className="nav-text">Clientes</span>
+                </button>
+              )}
+              
+              {security.canAccessMenu(userRole, 'presenca') && (
+                <button 
+                  onClick={() => handleNavItemClick('presenca')} 
+                  className={`nav-item ${currentView === 'presenca' ? 'active' : ''}`}
+                >
+                  <span className="nav-icon">📋</span>
+                  <span className="nav-text">Presenças</span>
+                </button>
+              )}
+              
+              {security.canAccessMenu(userRole, 'colaboradores') && (
+                <button 
+                  onClick={() => handleNavItemClick('colaboradores')} 
+                  className={`nav-item ${currentView === 'colaboradores' ? 'active' : ''}`}
+                >
+                  <span className="nav-icon">👷</span>
+                  <span className="nav-text">Colaboradores</span>
+                </button>
+              )}
+              
+              {security.canAccessMenu(userRole, 'usuarios') && (
+                <button 
+                  onClick={() => handleNavItemClick('usuarios')} 
+                  className={`nav-item ${currentView === 'usuarios' ? 'active' : ''}`}
+                >
+                  <span className="nav-icon">👤</span>
+                  <span className="nav-text">Usuários</span>
+                </button>
+              )}
+              
+              {security.canAccessMenu(userRole, 'cargos') && (
+                <button 
+                  onClick={() => handleNavItemClick('cargos')} 
+                  className={`nav-item ${currentView === 'cargos' ? 'active' : ''}`}
+                >
+                  <span className="nav-icon">🎯</span>
+                  <span className="nav-text">Cargos</span>
+                </button>
+              )}
+              
+              {security.canAccessMenu(userRole, 'veiculos') && (
+                <button 
+                  onClick={() => handleNavItemClick('veiculos')} 
+                  className={`nav-item ${currentView === 'veiculos' ? 'active' : ''}`}
+                >
+                  <span className="nav-icon">🚗</span>
+                  <span className="nav-text">Veículos</span>
+                </button>
+              )}
+              
+              {security.canAccessMenu(userRole, 'tipos_servico') && (
+                <button 
+                  onClick={() => handleNavItemClick('tipos_servico')} 
+                  className={`nav-item ${currentView === 'tipos_servico' ? 'active' : ''}`}
+                >
+                  <span className="nav-icon">🔧</span>
+                  <span className="nav-text">Tipos de Serviço</span>
+                </button>
+              )}
+              
+              {security.canAccessMenu(userRole, 'tipos_padrao') && (
+                <button 
+                  onClick={() => handleNavItemClick('tipos_padrao')} 
+                  className={`nav-item ${currentView === 'tipos_padrao' ? 'active' : ''}`}
+                >
+                  <span className="nav-icon">⚡</span>
+                  <span className="nav-text">Tipos de Padrão</span>
+                </button>
+              )}
+            </div>
           </div>
           
           <div className="nav-user">
@@ -2064,85 +2471,142 @@ const Welcome = () => {
               </div>
               
               <form onSubmit={handleClienteFormSubmit} className="cliente-form">
-                <div className="form-row">
+                {/* Seção 1: Informações Básicas do Cliente */}
+                <div className="form-section">
+                  <h4 className="section-title">📋 Informações Básicas</h4>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label htmlFor="nome_cliente">Nome do Cliente: *</label>
+                      <input
+                        type="text"
+                        id="nome_cliente"
+                        value={clienteFormData.nome_cliente}
+                        onChange={(e) => setClienteFormData({...clienteFormData, nome_cliente: e.target.value})}
+                        required
+                        placeholder="Nome completo do cliente"
+                      />
+                    </div>
+                    
+                    <div className="form-group">
+                      <label htmlFor="telefone">Telefone: *</label>
+                      <input
+                        type="tel"
+                        id="telefone"
+                        value={clienteFormData.telefone}
+                        onChange={(e) => setClienteFormData({...clienteFormData, telefone: e.target.value})}
+                        required
+                        placeholder="(11) 99999-9999"
+                      />
+                    </div>
+                  </div>
+                  
                   <div className="form-group">
-                    <label htmlFor="nome_cliente">Nome do Cliente: *</label>
+                    <label htmlFor="endereco">Endereço: *</label>
                     <input
                       type="text"
-                      id="nome_cliente"
-                      value={clienteFormData.nome_cliente}
-                      onChange={(e) => setClienteFormData({...clienteFormData, nome_cliente: e.target.value})}
+                      id="endereco"
+                      value={clienteFormData.endereco}
+                      onChange={(e) => setClienteFormData({...clienteFormData, endereco: e.target.value})}
                       required
-                    />
-                  </div>
-                  
-                  <div className="form-group">
-                    <label htmlFor="telefone">Telefone: *</label>
-                    <input
-                      type="tel"
-                      id="telefone"
-                      value={clienteFormData.telefone}
-                      onChange={(e) => setClienteFormData({...clienteFormData, telefone: e.target.value})}
-                      required
+                      placeholder="Endereço completo da instalação"
                     />
                   </div>
                 </div>
-                
-                <div className="form-group">
-                  <label htmlFor="endereco">Endereço: *</label>
-                  <input
-                    type="text"
-                    id="endereco"
-                    value={clienteFormData.endereco}
-                    onChange={(e) => setClienteFormData({...clienteFormData, endereco: e.target.value})}
-                    required
-                  />
-                </div>
-                
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="data_instalacao">Data da Instalação: *</label>
-                    <input
-                      type="date"
-                      id="data_instalacao"
-                      value={clienteFormData.data_instalacao}
-                      onChange={(e) => setClienteFormData({...clienteFormData, data_instalacao: e.target.value})}
-                      required
-                    />
-                  </div>
-                  
-                  <div className="form-group">
-                    <label htmlFor="tipo_servico">Tipo de Serviço:</label>
-                    <select
-                      id="tipo_servico"
-                      value={clienteFormData.tipo_servico_id}
-                      onChange={(e) => setClienteFormData({...clienteFormData, tipo_servico_id: e.target.value})}
-                    >
-                      <option value="">Selecione um tipo de serviço</option>
-                      {tiposServico.map((tipo) => (
-                        <option key={tipo.id} value={tipo.id}>{tipo.nome}</option>
-                      ))}
-                    </select>
+
+                {/* Seção 2: Datas e Cronograma */}
+                <div className="form-section">
+                  <h4 className="section-title">📅 Datas e Cronograma</h4>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label htmlFor="data_cadastro">Data de Cadastro:</label>
+                      <input
+                        type="date"
+                        id="data_cadastro"
+                        value={clienteFormData.data_cadastro}
+                        onChange={(e) => setClienteFormData({...clienteFormData, data_cadastro: e.target.value})}
+                      />
+                    </div>
+                    
+                    <div className="form-group">
+                      <label htmlFor="data_instalacao">Data da Instalação: *</label>
+                      <input
+                        type="date"
+                        id="data_instalacao"
+                        value={clienteFormData.data_instalacao}
+                        onChange={(e) => setClienteFormData({...clienteFormData, data_instalacao: e.target.value})}
+                        required
+                      />
+                    </div>
                   </div>
                 </div>
-                
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="equipe">Equipe:</label>
-                    <select
-                      id="equipe"
-                      value={clienteFormData.equipe_id}
-                      onChange={(e) => setClienteFormData({...clienteFormData, equipe_id: e.target.value})}
-                    >
-                      <option value="">Selecione uma equipe</option>
-                      {equipes.map((equipe) => (
-                        <option key={equipe.id} value={equipe.id}>{equipe.nome}</option>
-                      ))}
-                    </select>
+
+                {/* Seção 3: Especificações Técnicas */}
+                <div className="form-section">
+                  <h4 className="section-title">⚡ Especificações Técnicas</h4>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label htmlFor="tipo_servico">Tipo de Serviço:</label>
+                      <select
+                        id="tipo_servico"
+                        value={clienteFormData.tipo_servico_id}
+                        onChange={(e) => setClienteFormData({...clienteFormData, tipo_servico_id: e.target.value})}
+                      >
+                        <option value="">Selecione um tipo de serviço</option>
+                        {tiposServico.map((tipo) => (
+                          <option key={tipo.id} value={tipo.id}>{tipo.nome}</option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    <div className="form-group">
+                      <label htmlFor="tipo_padrao">Tipo de Padrão:</label>
+                      <select
+                        id="tipo_padrao"
+                        value={clienteFormData.tipo_padrao_id}
+                        onChange={(e) => setClienteFormData({...clienteFormData, tipo_padrao_id: e.target.value})}
+                      >
+                        <option value="">Selecione um tipo de padrão</option>
+                        {tiposPadrao.map((tipo) => (
+                          <option key={tipo.id} value={tipo.id}>{tipo.nome}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                   
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label htmlFor="quantidade_modulos">Quantidade de Módulos:</label>
+                      <input
+                        type="number"
+                        id="quantidade_modulos"
+                        value={clienteFormData.quantidade_modulos || ''}
+                        onChange={(e) => setClienteFormData({...clienteFormData, quantidade_modulos: parseInt(e.target.value) || 0})}
+                        min="0"
+                        placeholder="Ex: 10"
+                      />
+                    </div>
+                    
+                    <div className="form-group">
+                      <label htmlFor="equipe">Equipe Responsável:</label>
+                      <select
+                        id="equipe"
+                        value={clienteFormData.equipe_id}
+                        onChange={(e) => setClienteFormData({...clienteFormData, equipe_id: e.target.value})}
+                      >
+                        <option value="">Selecione uma equipe</option>
+                        {equipes.map((equipe) => (
+                          <option key={equipe.id} value={equipe.id}>{equipe.nome}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Seção 4: Status e Acompanhamento */}
+                <div className="form-section">
+                  <h4 className="section-title">📊 Status e Acompanhamento</h4>
                   <div className="form-group">
-                    <label htmlFor="status">Status:</label>
+                    <label htmlFor="status">Status do Projeto:</label>
                     <select
                       id="status"
                       value={clienteFormData.status}
@@ -2153,6 +2617,91 @@ const Welcome = () => {
                       <option value="finalizado">Finalizado</option>
                       <option value="validado">Validado</option>
                     </select>
+                  </div>
+                </div>
+
+                {/* Seção 5: Configurações e Opções */}
+                <div className="form-section">
+                  <h4 className="section-title">⚙️ Configurações e Opções</h4>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="simple-checkbox-label">
+                        <input
+                          type="checkbox"
+                          id="configuracao_inversor"
+                          checked={clienteFormData.configuracao_inversor}
+                          onChange={(e) => setClienteFormData({...clienteFormData, configuracao_inversor: e.target.checked})}
+                        />
+                        Configuração do Inversor
+                      </label>
+                    </div>
+                    
+                    <div className="form-group">
+                      <label className="simple-checkbox-label">
+                        <input
+                          type="checkbox"
+                          id="deslocamento_material"
+                          checked={clienteFormData.deslocamento_material}
+                          onChange={(e) => setClienteFormData({...clienteFormData, deslocamento_material: e.target.checked})}
+                        />
+                        Deslocamento para Buscar Material
+                      </label>
+                    </div>
+                  </div>
+                  
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="simple-checkbox-label">
+                        <input
+                          type="checkbox"
+                          id="obra_civil"
+                          checked={clienteFormData.obra_civil === 'sim'}
+                          onChange={(e) => setClienteFormData({...clienteFormData, obra_civil: e.target.checked ? 'sim' : 'nao'})}
+                        />
+                        Obra Civil
+                      </label>
+                    </div>
+                    
+                    <div className="form-group">
+                      <label className="simple-checkbox-label">
+                        <input
+                          type="checkbox"
+                          id="obra_cancelada"
+                          checked={clienteFormData.obra_cancelada}
+                          onChange={(e) => setClienteFormData({...clienteFormData, obra_cancelada: e.target.checked})}
+                        />
+                        Obra Cancelada
+                      </label>
+                    </div>
+                  </div>
+                  
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="simple-checkbox-label">
+                        <input
+                          type="checkbox"
+                          id="nota_material"
+                          checked={clienteFormData.nota_material}
+                          onChange={(e) => setClienteFormData({...clienteFormData, nota_material: e.target.checked})}
+                        />
+                        Nota de Material
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Seção 6: Observações */}
+                <div className="form-section">
+                  <h4 className="section-title">📝 Observações</h4>
+                  <div className="form-group">
+                    <label htmlFor="observacoes">Observações Adicionais:</label>
+                    <textarea
+                      id="observacoes"
+                      value={clienteFormData.observacoes || ''}
+                      onChange={(e) => setClienteFormData({...clienteFormData, observacoes: e.target.value})}
+                      rows="3"
+                      placeholder="Observações adicionais sobre o cliente ou projeto..."
+                    />
                   </div>
                 </div>
                 
@@ -2365,84 +2914,178 @@ const Welcome = () => {
           </div>
         )}
         
-        {/* Formulário de Usuário */}
-        {showUsuarioForm && (
-          <div className="form-overlay">
-            <div className="form-modal">
-              <div className="modal-header">
-                <h3>{editingUsuario ? 'Editar Usuário' : 'Cadastrar Novo Usuário'}</h3>
-                <button onClick={closeUsuarioForm} className="close-button">×</button>
-              </div>
-              
-              <form onSubmit={handleUsuarioFormSubmit} className="usuario-form">
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="nome_usuario">Nome: *</label>
-                    <input
-                      type="text"
-                      id="nome_usuario"
-                      value={usuarioFormData.nome}
-                      onChange={(e) => setUsuarioFormData({...usuarioFormData, nome: e.target.value})}
-                      required
-                    />
-                  </div>
-                  
-                  <div className="form-group">
-                    <label htmlFor="email_usuario">Email: *</label>
-                    <input
-                      type="email"
-                      id="email_usuario"
-                      value={usuarioFormData.email}
-                      onChange={(e) => setUsuarioFormData({...usuarioFormData, email: e.target.value})}
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="role_usuario">Função: *</label>
-                    <select
-                      id="role_usuario"
-                      value={usuarioFormData.role}
-                      onChange={(e) => setUsuarioFormData({...usuarioFormData, role: e.target.value})}
-                      required
-                    >
-                      <option value="">Selecione uma função</option>
-                      {cargos.map((cargo) => (
-                        <option key={cargo.id} value={cargo.cargo}>
-                          {cargo.ativo ? '✅' : '❌'} {cargo.cargo}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <div className="form-group">
-                    <label htmlFor="status_usuario">Status: *</label>
-                    <select
-                      id="status_usuario"
-                      value={usuarioFormData.status}
-                      onChange={(e) => setUsuarioFormData({...usuarioFormData, status: e.target.value})}
-                      required
-                    >
-                      <option value="ativo">✅ Ativo</option>
-                      <option value="inativo">❌ Inativo</option>
-                    </select>
-                  </div>
-                </div>
-                
-                <div className="form-actions">
-                  <button type="button" onClick={closeUsuarioForm} className="cancel-button">
-                    Cancelar
-                  </button>
-                  <button type="submit" className="submit-button">
-                    {editingUsuario ? 'Atualizar' : 'Cadastrar'} Usuário
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+                 {/* Formulário de Usuário */}
+         {showUsuarioForm && (
+           <div className="form-overlay">
+             <div className="form-modal">
+               <div className="modal-header">
+                 <h3>{editingUsuario ? 'Editar Usuário' : 'Cadastrar Novo Usuário'}</h3>
+                 <button onClick={closeUsuarioForm} className="close-button">×</button>
+               </div>
+               
+               <form onSubmit={handleUsuarioFormSubmit} className="usuario-form">
+                 <div className="form-row">
+                   <div className="form-group">
+                     <label htmlFor="nome_usuario">Nome: *</label>
+                     <input
+                       type="text"
+                       id="nome_usuario"
+                       value={usuarioFormData.nome}
+                       onChange={(e) => setUsuarioFormData({...usuarioFormData, nome: e.target.value})}
+                       required
+                     />
+                   </div>
+                   
+                   <div className="form-group">
+                     <label htmlFor="email_usuario">Email: *</label>
+                     <input
+                       type="email"
+                       id="email_usuario"
+                       value={usuarioFormData.email}
+                       onChange={(e) => setUsuarioFormData({...usuarioFormData, email: e.target.value})}
+                       required
+                     />
+                   </div>
+                 </div>
+                 
+                 <div className="form-row">
+                   <div className="form-group">
+                     <label htmlFor="role_usuario">Função: *</label>
+                     <select
+                       id="role_usuario"
+                       value={usuarioFormData.role}
+                       onChange={(e) => setUsuarioFormData({...usuarioFormData, role: e.target.value})}
+                       required
+                     >
+                       <option value="">Selecione uma função</option>
+                       {cargos.map((cargo) => (
+                         <option key={cargo.id} value={cargo.cargo}>
+                           {cargo.ativo ? '✅' : '❌'} {cargo.cargo}
+                         </option>
+                       ))}
+                     </select>
+                   </div>
+                   
+                   <div className="form-group">
+                     <label htmlFor="status_usuario">Status: *</label>
+                     <select
+                       id="status_usuario"
+                       value={usuarioFormData.status}
+                       onChange={(e) => setUsuarioFormData({...usuarioFormData, status: e.target.value})}
+                       required
+                     >
+                       <option value="ativo">✅ Ativo</option>
+                       <option value="inativo">❌ Inativo</option>
+                     </select>
+                   </div>
+                 </div>
+                 
+                 <div className="form-actions">
+                   <button type="button" onClick={closeUsuarioForm} className="cancel-button">
+                     Cancelar
+                   </button>
+                   <button type="submit" className="submit-button">
+                     {editingUsuario ? 'Atualizar' : 'Cadastrar'} Usuário
+                   </button>
+                 </div>
+               </form>
+             </div>
+           </div>
+         )}
+         
+         {/* Formulário de Tipo de Serviço */}
+         {showTipoServicoForm && (
+           <div className="form-overlay">
+             <div className="form-modal">
+               <div className="modal-header">
+                 <h3>{editingTipoServico ? 'Editar Tipo de Serviço' : 'Cadastrar Novo Tipo de Serviço'}</h3>
+                 <button onClick={closeTipoServicoForm} className="close-button">×</button>
+               </div>
+               
+               <form onSubmit={handleTipoServicoFormSubmit} className="tipo-servico-form">
+                 <div className="form-group">
+                   <label htmlFor="nome_tipo_servico">Nome: *</label>
+                   <input
+                     type="text"
+                     id="nome_tipo_servico"
+                     value={tipoServicoFormData.nome}
+                     onChange={(e) => setTipoServicoFormData({...tipoServicoFormData, nome: e.target.value})}
+                     required
+                     placeholder="Ex: Instalação, Manutenção, etc."
+                   />
+                 </div>
+                 
+                 <div className="form-group">
+                   <label htmlFor="ativo_tipo_servico">Status:</label>
+                   <select
+                     id="ativo_tipo_servico"
+                     value={tipoServicoFormData.ativo}
+                     onChange={(e) => setTipoServicoFormData({...tipoServicoFormData, ativo: e.target.value === 'true'})}
+                   >
+                     <option value={true}>✅ Ativo</option>
+                     <option value={false}>❌ Inativo</option>
+                   </select>
+                 </div>
+                 
+                 <div className="form-actions">
+                   <button type="button" onClick={closeTipoServicoForm} className="cancel-button">
+                     Cancelar
+                   </button>
+                   <button type="submit" className="submit-button">
+                     {editingTipoServico ? 'Atualizar' : 'Cadastrar'} Tipo de Serviço
+                   </button>
+                 </div>
+               </form>
+             </div>
+           </div>
+         )}
+         
+         {/* Formulário de Tipo de Padrão */}
+         {showTipoPadraoForm && (
+           <div className="form-overlay">
+             <div className="form-modal">
+               <div className="modal-header">
+                 <h3>{editingTipoPadrao ? 'Editar Tipo de Padrão' : 'Cadastrar Novo Tipo de Padrão'}</h3>
+                 <button onClick={closeTipoPadraoForm} className="close-button">×</button>
+               </div>
+               
+               <form onSubmit={handleTipoPadraoFormSubmit} className="tipo-padrao-form">
+                 <div className="form-group">
+                   <label htmlFor="nome_tipo_padrao">Nome: *</label>
+                   <input
+                     type="text"
+                     id="nome_tipo_padrao"
+                     value={tipoPadraoFormData.nome}
+                     onChange={(e) => setTipoPadraoFormData({...tipoPadraoFormData, nome: e.target.value})}
+                     required
+                     placeholder="Ex: Monofásico, Bifásico, Trifásico"
+                   />
+                 </div>
+                 
+                 <div className="form-group">
+                   <label htmlFor="ativo_tipo_padrao">Status:</label>
+                   <select
+                     id="ativo_tipo_padrao"
+                     value={tipoPadraoFormData.ativo}
+                     onChange={(e) => setTipoPadraoFormData({...tipoPadraoFormData, ativo: e.target.value === 'true'})}
+                   >
+                     <option value={true}>✅ Ativo</option>
+                     <option value={false}>❌ Inativo</option>
+                   </select>
+                 </div>
+                 
+                 <div className="form-actions">
+                   <button type="button" onClick={closeTipoPadraoForm} className="cancel-button">
+                     Cancelar
+                   </button>
+                   <button type="submit" className="submit-button">
+                     {editingTipoPadrao ? 'Atualizar' : 'Cadastrar'} Tipo de Padrão
+                   </button>
+                 </div>
+               </form>
+             </div>
+           </div>
+         )}
         
         {/* Formulário de Presença */}
         {showPresencaForm && (
