@@ -49,8 +49,50 @@ const Welcome = () => {
   // Estados para tipos de serviço
   const [tiposServico, setTiposServico] = useState([])
   
-  // Estados para usuários
+  // Estados para usuários instaladores
   const [usuariosInstaladores, setUsuariosInstaladores] = useState([])
+  
+  // Estados para colaboradores
+  const [colaboradores, setColaboradores] = useState([])
+  const [showColaboradorForm, setShowColaboradorForm] = useState(false)
+  const [editingColaborador, setEditingColaborador] = useState(null)
+  const [colaboradorFormData, setColaboradorFormData] = useState({
+    nome: '',
+    cargo: '',
+    email: '',
+    chave_pix: '',
+    ativo: true
+  })
+  
+  // Estados para usuários do sistema
+  const [usuarios, setUsuarios] = useState([])
+  const [showUsuarioForm, setShowUsuarioForm] = useState(false)
+  const [editingUsuario, setEditingUsuario] = useState(null)
+  const [usuarioFormData, setUsuarioFormData] = useState({
+    nome: '',
+    email: '',
+    role: 'usuario',
+    status: 'ativo'
+  })
+  
+  // Estados para cargos
+  const [cargos, setCargos] = useState([])
+  const [showCargoForm, setShowCargoForm] = useState(false)
+  const [editingCargo, setEditingCargo] = useState(null)
+  const [cargoFormData, setCargoFormData] = useState({
+    cargo: '',
+    ativo: true
+  })
+  
+  // Estados para veículos
+  const [veiculos, setVeiculos] = useState([])
+  const [showVeiculoForm, setShowVeiculoForm] = useState(false)
+  const [editingVeiculo, setEditingVeiculo] = useState(null)
+  const [veiculoFormData, setVeiculoFormData] = useState({
+    veiculo: '',
+    placa: '',
+    ativo: true
+  })
   
   // Estados para filtros
   const [filtrosCliente, setFiltrosCliente] = useState({
@@ -76,6 +118,351 @@ const Welcome = () => {
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id))
     }, 5000)
+  }
+  
+  // Funções para colaboradores
+  const handleEditColaborador = (colaborador) => {
+    setEditingColaborador(colaborador)
+    setColaboradorFormData({
+      nome: colaborador.nome || '',
+      cargo: colaborador.cargo || '',
+      email: colaborador.email || '',
+      chave_pix: colaborador.chave_pix || '',
+      ativo: colaborador.ativo !== undefined ? colaborador.ativo : true
+    })
+    setShowColaboradorForm(true)
+  }
+
+  const handleDeleteColaborador = async (colaborador) => {
+    if (!window.confirm(`Tem certeza que deseja excluir o colaborador "${colaborador.nome}"?`)) {
+      return
+    }
+    
+    try {
+      const { error } = await supabase
+        .from('colaboradores')
+        .delete()
+        .eq('id', colaborador.id)
+      
+      if (error) throw error
+      
+      showNotification('Colaborador excluído com sucesso!', 'success')
+      loadColaboradores()
+    } catch (error) {
+      console.error('Erro ao excluir colaborador:', error)
+      showNotification('Erro ao excluir colaborador: ' + error.message, 'error')
+    }
+  }
+
+  // Salvar colaborador
+  const handleColaboradorFormSubmit = async (e) => {
+    e.preventDefault()
+    
+    try {
+      if (editingColaborador) {
+        // Atualizar colaborador existente
+        const { error } = await supabase
+          .from('colaboradores')
+          .update(colaboradorFormData)
+          .eq('id', editingColaborador.id)
+        
+        if (error) throw error
+        
+        showNotification('Colaborador atualizado com sucesso!', 'success')
+      } else {
+        // Criar novo colaborador
+        const { error } = await supabase
+          .from('colaboradores')
+          .insert([colaboradorFormData])
+        
+        if (error) throw error
+        
+        showNotification('Colaborador cadastrado com sucesso!', 'success')
+      }
+      
+      closeColaboradorForm()
+      loadColaboradores()
+    } catch (error) {
+      console.error('Erro ao salvar colaborador:', error)
+      showNotification('Erro ao salvar colaborador: ' + error.message, 'error')
+    }
+  }
+
+  // Fechar formulário de colaborador
+  const closeColaboradorForm = () => {
+    setShowColaboradorForm(false)
+    setEditingColaborador(null)
+    setColaboradorFormData({
+      nome: '',
+      cargo: '',
+      email: '',
+      chave_pix: '',
+      ativo: true
+    })
+  }
+
+  // Funções para usuários
+  const handleEditUsuario = (usuario) => {
+    setEditingUsuario(usuario)
+    setUsuarioFormData({
+      nome: usuario.nome || '',
+      email: usuario.email || '',
+      role: usuario.role || 'usuario',
+      status: usuario.status || 'ativo'
+    })
+    setShowUsuarioForm(true)
+  }
+
+  const handleDeleteUsuario = async (usuario) => {
+    if (!window.confirm(`Tem certeza que deseja excluir o usuário "${usuario.nome}"?`)) {
+      return
+    }
+    
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', usuario.id)
+      
+      if (error) throw error
+      
+      showNotification('Usuário excluído com sucesso!', 'success')
+      loadUsuarios()
+    } catch (error) {
+      console.error('Erro ao excluir usuário:', error)
+      showNotification('Erro ao excluir usuário: ' + error.message, 'error')
+    }
+  }
+
+  // Salvar usuário
+  const handleUsuarioFormSubmit = async (e) => {
+    e.preventDefault()
+    
+    try {
+      if (editingUsuario) {
+        // Atualizar usuário existente
+        const { error } = await supabase
+          .from('profiles')
+          .update(usuarioFormData)
+          .eq('id', editingUsuario.id)
+        
+        if (error) throw error
+        
+        showNotification('Usuário atualizado com sucesso!', 'success')
+      } else {
+        // Criar novo usuário
+        const { error } = await supabase
+          .from('profiles')
+          .insert([usuarioFormData])
+        
+        if (error) throw error
+        
+        showNotification('Usuário cadastrado com sucesso!', 'success')
+      }
+      
+      closeUsuarioForm()
+      loadUsuarios()
+    } catch (error) {
+      console.error('Erro ao salvar usuário:', error)
+      showNotification('Erro ao salvar usuário: ' + error.message, 'error')
+    }
+  }
+
+  // Fechar formulário de usuário
+  const closeUsuarioForm = () => {
+    setShowUsuarioForm(false)
+    setEditingUsuario(null)
+    setUsuarioFormData({
+      nome: '',
+      email: '',
+      role: 'usuario',
+      status: 'ativo'
+    })
+  }
+
+  // Funções para cargos
+  const handleEditCargo = (cargo) => {
+    // Verificar se o usuário pode editar este cargo
+    if (isCargoRestrito(cargo.cargo) && !isAdministrador()) {
+      showNotification('Você não tem permissão para editar este cargo.', 'error')
+      return
+    }
+    
+    setEditingCargo(cargo)
+    setCargoFormData({
+      cargo: cargo.cargo || '',
+      ativo: cargo.ativo !== undefined ? cargo.ativo : true
+    })
+    setShowCargoForm(true)
+  }
+
+  const handleDeleteCargo = async (cargo) => {
+    // Verificar se o usuário pode excluir este cargo
+    if (isCargoRestrito(cargo.cargo) && !isAdministrador()) {
+      showNotification('Você não tem permissão para excluir este cargo.', 'error')
+      return
+    }
+    
+    if (!window.confirm(`Tem certeza que deseja excluir o cargo "${cargo.cargo}"?`)) {
+      return
+    }
+    
+    try {
+      const { error } = await supabase
+        .from('cargos')
+        .delete()
+        .eq('id', cargo.id)
+      
+      if (error) throw error
+      
+      showNotification('Cargo excluído com sucesso!', 'success')
+      loadCargos()
+    } catch (error) {
+      console.error('Erro ao excluir cargo:', error)
+      showNotification('Erro ao excluir cargo: ' + error.message, 'error')
+    }
+  }
+
+  // Salvar cargo
+  const handleCargoFormSubmit = async (e) => {
+    e.preventDefault()
+    
+    // Verificar se o usuário pode criar/editar cargos restritos
+    if (isCargoRestrito(cargoFormData.cargo) && !isAdministrador()) {
+      showNotification('Você não tem permissão para criar ou editar este cargo.', 'error')
+      return
+    }
+    
+    try {
+      if (editingCargo) {
+        // Atualizar cargo existente
+        const { error } = await supabase
+          .from('cargos')
+          .update(cargoFormData)
+          .eq('id', editingCargo.id)
+        
+        if (error) throw error
+        
+        showNotification('Cargo atualizado com sucesso!', 'success')
+      } else {
+        // Criar novo cargo
+        const { error } = await supabase
+          .from('cargos')
+          .insert([cargoFormData])
+        
+        if (error) throw error
+        
+        showNotification('Cargo cadastrado com sucesso!', 'success')
+      }
+      
+      closeCargoForm()
+      loadCargos()
+    } catch (error) {
+      console.error('Erro ao salvar cargo:', error)
+      showNotification('Erro ao salvar cargo: ' + error.message, 'error')
+    }
+  }
+
+  // Fechar formulário de cargo
+  const closeCargoForm = () => {
+    setShowCargoForm(false)
+    setEditingCargo(null)
+    setCargoFormData({
+      cargo: '',
+      ativo: true
+    })
+  }
+
+  // Funções para veículos
+  const handleEditVeiculo = (veiculo) => {
+    setEditingVeiculo(veiculo)
+    setVeiculoFormData({
+      veiculo: veiculo.veiculo || '',
+      placa: veiculo.placa || '',
+      ativo: veiculo.ativo !== undefined ? veiculo.ativo : true
+    })
+    setShowVeiculoForm(true)
+  }
+
+  const handleDeleteVeiculo = async (veiculo) => {
+    if (!window.confirm(`Tem certeza que deseja excluir o veículo "${veiculo.veiculo}"?`)) {
+      return
+    }
+    
+    try {
+      const { error } = await supabase
+        .from('veiculos')
+        .delete()
+        .eq('id', veiculo.id)
+      
+      if (error) throw error
+      
+      showNotification('Veículo excluído com sucesso!', 'success')
+      loadVeiculos()
+    } catch (error) {
+      console.error('Erro ao excluir veículo:', error)
+      showNotification('Erro ao excluir veículo: ' + error.message, 'error')
+    }
+  }
+
+  // Salvar veículo
+  const handleVeiculoFormSubmit = async (e) => {
+    e.preventDefault()
+    
+    try {
+      if (editingVeiculo) {
+        // Atualizar veículo existente
+        const { error } = await supabase
+          .from('veiculos')
+          .update(veiculoFormData)
+          .eq('id', editingVeiculo.id)
+        
+        if (error) throw error
+        
+        showNotification('Veículo atualizado com sucesso!', 'success')
+      } else {
+        // Criar novo veículo
+        const { error } = await supabase
+          .from('veiculos')
+          .insert([veiculoFormData])
+        
+        if (error) throw error
+        
+        showNotification('Veículo cadastrado com sucesso!', 'success')
+      }
+      
+      closeVeiculoForm()
+      loadVeiculos()
+    } catch (error) {
+      console.error('Erro ao salvar veículo:', error)
+      showNotification('Erro ao salvar veículo: ' + error.message, 'error')
+    }
+  }
+
+  // Fechar formulário de veículo
+  const closeVeiculoForm = () => {
+    setShowVeiculoForm(false)
+    setEditingVeiculo(null)
+    setVeiculoFormData({
+      veiculo: '',
+      placa: '',
+      ativo: true
+    })
+  }
+
+  // Funções auxiliares de segurança
+  const isAdministrador = () => {
+    return userRole === 'administrador'
+  }
+  
+  const isCargoRestrito = (cargoNome) => {
+    const cargosRestritos = ['administrador', 'administrativo']
+    return cargosRestritos.includes(cargoNome?.toLowerCase())
+  }
+  
+  const podeGerenciarCargo = (cargoNome) => {
+    if (!isCargoRestrito(cargoNome)) return true
+    return isAdministrador()
   }
   
   // Função para formatar data
@@ -111,12 +498,14 @@ const Welcome = () => {
           // Carregar perfil do usuário
           const { data: profile } = await supabase
             .from('profiles')
-            .select('role')
+            .select('nome, role')
             .eq('id', user.id)
             .single()
           
           if (profile) {
             setUserRole(profile.role)
+            // Atualizar o usuário com o nome do perfil
+            setUser({...user, nome: profile.nome})
           }
         }
         
@@ -167,16 +556,32 @@ const Welcome = () => {
   // Carregar usuários instaladores
   const loadUsuariosInstaladores = async () => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, nome, role')
-        .in('role', ['instalador', 'administrador'])
-        .order('nome')
+      // Primeiro carregar os cargos ativos
+      const { data: cargosAtivos, error: cargosError } = await supabase
+        .from('cargos')
+        .select('cargo')
+        .eq('ativo', true)
       
-      if (error) throw error
-      setUsuariosInstaladores(data || [])
+      if (cargosError) throw cargosError
+      
+      if (cargosAtivos && cargosAtivos.length > 0) {
+        const cargosNomes = cargosAtivos.map(c => c.cargo)
+        
+        // Carregar usuários com cargos ativos
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, nome, role')
+          .in('role', cargosNomes)
+          .order('nome')
+        
+        if (error) throw error
+        setUsuariosInstaladores(data || [])
+      } else {
+        setUsuariosInstaladores([])
+      }
     } catch (error) {
       console.error('Erro ao carregar usuários instaladores:', error)
+      setUsuariosInstaladores([])
     }
   }
   
@@ -221,6 +626,70 @@ const Welcome = () => {
     } catch (error) {
       console.error('Erro ao carregar presenças:', error)
       setPresencas([])
+    }
+  }, [])
+
+  // Carregar colaboradores
+  const loadColaboradores = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('colaboradores')
+        .select('*')
+        .order('nome', { ascending: true })
+      
+      if (error) throw error
+      setColaboradores(data || [])
+    } catch (error) {
+      console.error('Erro ao carregar colaboradores:', error)
+      setColaboradores([])
+    }
+  }, [])
+
+  // Carregar usuários
+  const loadUsuarios = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('nome', { ascending: true })
+      
+      if (error) throw error
+      setUsuarios(data || [])
+    } catch (error) {
+      console.error('Erro ao carregar usuários:', error)
+      setUsuarios([])
+    }
+  }, [])
+
+  // Carregar cargos
+  const loadCargos = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('cargos')
+        .select('*')
+        .order('cargo', { ascending: true })
+      
+      if (error) throw error
+      setCargos(data || [])
+    } catch (error) {
+      console.error('Erro ao carregar cargos:', error)
+      setCargos([])
+    }
+  }, [])
+
+  // Carregar veículos
+  const loadVeiculos = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('veiculos')
+        .select('*')
+        .order('veiculo', { ascending: true })
+      
+      if (error) throw error
+      setVeiculos(data || [])
+    } catch (error) {
+      console.error('Erro ao carregar veículos:', error)
+      setVeiculos([])
     }
   }, [])
   
@@ -523,15 +992,28 @@ const Welcome = () => {
           <h3>{equipes.length}</h3>
           <p>Total de Equipes</p>
         </div>
+        <div className="stat-card">
+          <h3>{colaboradores.length}</h3>
+          <p>Total de Colaboradores</p>
+        </div>
+        <div className="stat-card">
+          <h3>{usuarios.length}</h3>
+          <p>Total de Usuários</p>
+        </div>
+        <div className="stat-card">
+          <h3>{cargos.length}</h3>
+          <p>Total de Cargos</p>
+        </div>
+        <div className="stat-card">
+          <h3>{veiculos.length}</h3>
+          <p>Total de Veículos</p>
+        </div>
       </div>
       
       <div className="quick-actions">
-        <button onClick={() => setCurrentView('clientes')} className="action-button primary">
-          👥 Gerenciar Clientes
-        </button>
-        <button onClick={() => setCurrentView('presenca')} className="action-button secondary">
-          📋 Gerenciar Presenças
-        </button>
+        <p className="dashboard-description">
+          Use o menu de navegação acima para acessar as diferentes funcionalidades do sistema.
+        </p>
       </div>
     </div>
   )
@@ -687,6 +1169,332 @@ const Welcome = () => {
     </div>
   )
   
+  // Renderizar lista de colaboradores
+  const renderColaboradores = () => (
+    <div className="menu-content">
+      <div className="menu-header">
+        <h2>Gerenciamento de Colaboradores</h2>
+        <button onClick={() => setCurrentView('dashboard')} className="back-button">
+          ← Voltar ao Dashboard
+        </button>
+      </div>
+      
+             <div className="colaboradores-actions">
+         <button onClick={() => {
+           // Garantir que os cargos estejam carregados antes de abrir o formulário
+           if (cargos.length === 0) {
+             loadCargos()
+           }
+           setShowColaboradorForm(true)
+         }} className="action-button primary">
+           ➕ Novo Colaborador
+         </button>
+       </div>
+      
+      <div className="colaboradores-list">
+        <h3>Colaboradores ({colaboradores.length})</h3>
+        <div className="table-container">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Cargo</th>
+                <th>Email</th>
+                <th>Chave PIX</th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {colaboradores.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="no-data">
+                    Nenhum colaborador cadastrado ainda.
+                  </td>
+                </tr>
+              ) : (
+                colaboradores.map((colaborador) => (
+                  <tr key={colaborador.id}>
+                    <td>{colaborador.nome}</td>
+                    <td>{colaborador.cargo}</td>
+                    <td>{colaborador.email || 'N/A'}</td>
+                    <td>{colaborador.chave_pix || 'N/A'}</td>
+                    <td>
+                      <span className={`status-badge ${colaborador.ativo ? 'status-ativo' : 'status-inativo'}`}>
+                        {colaborador.ativo ? '✅ Ativo' : '❌ Inativo'}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="action-buttons">
+                                                 <button 
+                           onClick={() => {
+                             // Garantir que os cargos estejam carregados antes de abrir o formulário
+                             if (cargos.length === 0) {
+                               loadCargos()
+                             }
+                             handleEditColaborador(colaborador)
+                           }} 
+                           className="action-btn small"
+                           title="Editar colaborador"
+                         >
+                           ✏️ Editar
+                         </button>
+                        <button 
+                          onClick={() => handleDeleteColaborador(colaborador)} 
+                          className="action-btn small danger"
+                          title="Excluir colaborador"
+                        >
+                          🗑️ Remover
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+
+  // Renderizar lista de usuários
+  const renderUsuarios = () => (
+    <div className="menu-content">
+      <div className="menu-header">
+        <h2>Gerenciamento de Usuários</h2>
+        <button onClick={() => setCurrentView('dashboard')} className="back-button">
+          ← Voltar ao Dashboard
+        </button>
+      </div>
+      
+      <div className="usuarios-actions">
+        <button onClick={() => setShowUsuarioForm(true)} className="action-button primary">
+          ➕ Novo Usuário
+        </button>
+      </div>
+      
+      <div className="usuarios-list">
+        <h3>Usuários ({usuarios.length})</h3>
+        <div className="table-container">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Email</th>
+                <th>Função</th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {usuarios.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="no-data">
+                    Nenhum usuário cadastrado ainda.
+                  </td>
+                </tr>
+              ) : (
+                usuarios.map((usuario) => (
+                  <tr key={usuario.id}>
+                    <td>{usuario.nome}</td>
+                    <td>{usuario.email}</td>
+                                         <td>
+                       <span className={`role-badge role-${usuario.role?.toLowerCase() || 'usuario'}`}>
+                         {usuario.role || 'N/A'}
+                       </span>
+                     </td>
+                    <td>
+                      <span className={`status-badge ${usuario.status === 'ativo' ? 'status-ativo' : 'status-inativo'}`}>
+                        {usuario.status === 'ativo' ? '✅ Ativo' : '❌ Inativo'}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="action-buttons">
+                        <button 
+                          onClick={() => handleEditUsuario(usuario)} 
+                          className="action-btn small"
+                          title="Editar usuário"
+                        >
+                          ✏️ Editar
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteUsuario(usuario)} 
+                          className="action-btn small danger"
+                          title="Excluir usuário"
+                        >
+                          🗑️ Remover
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+
+  // Renderizar lista de cargos
+  const renderCargos = () => (
+    <div className="menu-content">
+      <div className="menu-header">
+        <h2>Gerenciamento de Cargos</h2>
+        <button onClick={() => setCurrentView('dashboard')} className="back-button">
+          ← Voltar ao Dashboard
+        </button>
+      </div>
+      
+             <div className="cargos-actions">
+         <button onClick={() => setShowCargoForm(true)} className="action-button primary">
+           ➕ Novo Cargo
+         </button>
+         {!isAdministrador() && (
+           <div className="security-notice">
+             <span className="security-icon">🔒</span>
+             <span>Nota: Apenas administradores podem criar cargos de "administrador" e "administrativo"</span>
+           </div>
+         )}
+       </div>
+      
+      <div className="cargos-list">
+        <h3>Cargos ({cargos.length})</h3>
+        <div className="table-container">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Cargo</th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cargos.length === 0 ? (
+                <tr>
+                  <td colSpan="3" className="no-data">
+                    Nenhum cargo cadastrado ainda.
+                  </td>
+                </tr>
+              ) : (
+                cargos.map((cargo) => (
+                  <tr key={cargo.id}>
+                    <td>{cargo.cargo}</td>
+                    <td>
+                      <span className={`status-badge ${cargo.ativo ? 'status-ativo' : 'status-inativo'}`}>
+                        {cargo.ativo ? '✅ Ativo' : '❌ Inativo'}
+                      </span>
+                    </td>
+                                         <td>
+                       <div className="action-buttons">
+                         {podeGerenciarCargo(cargo.cargo) ? (
+                           <>
+                             <button 
+                               onClick={() => handleEditCargo(cargo)} 
+                               className="action-btn small"
+                               title="Editar cargo"
+                             >
+                               ✏️ Editar
+                             </button>
+                             <button 
+                               onClick={() => handleDeleteCargo(cargo)} 
+                               className="action-btn small danger"
+                               title="Excluir cargo"
+                             >
+                               🗑️ Remover
+                             </button>
+                           </>
+                         ) : (
+                           <span className="permission-notice" title="Apenas administradores podem gerenciar este cargo">
+                             🔒 Sem permissão
+                           </span>
+                         )}
+                       </div>
+                     </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+
+  // Renderizar lista de veículos
+  const renderVeiculos = () => (
+    <div className="menu-content">
+      <div className="menu-header">
+        <h2>Gerenciamento de Veículos</h2>
+        <button onClick={() => setCurrentView('dashboard')} className="back-button">
+          ← Voltar ao Dashboard
+        </button>
+      </div>
+      
+      <div className="veiculos-actions">
+        <button onClick={() => setShowVeiculoForm(true)} className="action-button primary">
+          ➕ Novo Veículo
+        </button>
+      </div>
+      
+      <div className="veiculos-list">
+        <h3>Veículos ({veiculos.length})</h3>
+        <div className="table-container">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Veículo</th>
+                <th>Placa</th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {veiculos.length === 0 ? (
+                <tr>
+                  <td colSpan="4" className="no-data">
+                    Nenhum veículo cadastrado ainda.
+                  </td>
+                </tr>
+              ) : (
+                veiculos.map((veiculo) => (
+                  <tr key={veiculo.id}>
+                    <td>{veiculo.veiculo}</td>
+                    <td>{veiculo.placa}</td>
+                    <td>
+                      <span className={`status-badge ${veiculo.ativo ? 'status-ativo' : 'status-inativo'}`}>
+                        {veiculo.ativo ? '✅ Ativo' : '❌ Inativo'}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="action-buttons">
+                        <button 
+                          onClick={() => handleEditVeiculo(veiculo)} 
+                          className="action-btn small"
+                          title="Editar veículo"
+                        >
+                          ✏️ Editar
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteVeiculo(veiculo)} 
+                          className="action-btn small danger"
+                          title="Excluir veículo"
+                        >
+                          🗑️ Remover
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+
   // Renderizar lista de presenças
   const renderPresenca = () => (
     <div className="menu-content">
@@ -771,8 +1579,12 @@ const Welcome = () => {
     if (userRole) {
       loadClientes()
       loadPresencas()
+      loadColaboradores()
+      loadUsuarios()
+      loadCargos()
+      loadVeiculos()
     }
-  }, [userRole, loadClientes, loadPresencas])
+  }, [userRole, loadClientes, loadPresencas, loadColaboradores, loadUsuarios, loadCargos, loadVeiculos])
   
   // Renderizar conteúdo baseado na view atual
   const renderContent = () => {
@@ -781,6 +1593,14 @@ const Welcome = () => {
         return renderClientes()
       case 'presenca':
         return renderPresenca()
+      case 'colaboradores':
+        return renderColaboradores()
+      case 'usuarios':
+        return renderUsuarios()
+      case 'cargos':
+        return renderCargos()
+      case 'veiculos':
+        return renderVeiculos()
       default:
         return renderDashboard()
     }
@@ -877,12 +1697,49 @@ const Welcome = () => {
                 📋 Presenças
               </button>
             )}
+            
+            {security.canAccessMenu(userRole, 'colaboradores') && (
+              <button 
+                onClick={() => setCurrentView('colaboradores')} 
+                className={`nav-item ${currentView === 'colaboradores' ? 'active' : ''}`}
+              >
+                👷 Colaboradores
+              </button>
+            )}
+            
+            {security.canAccessMenu(userRole, 'usuarios') && (
+              <button 
+                onClick={() => setCurrentView('usuarios')} 
+                className={`nav-item ${currentView === 'usuarios' ? 'active' : ''}`}
+              >
+                👤 Usuários
+              </button>
+            )}
+            
+            {security.canAccessMenu(userRole, 'cargos') && (
+              <button 
+                onClick={() => setCurrentView('cargos')} 
+                className={`nav-item ${currentView === 'cargos' ? 'active' : ''}`}
+              >
+                🎯 Cargos
+              </button>
+            )}
+            
+            {security.canAccessMenu(userRole, 'veiculos') && (
+              <button 
+                onClick={() => setCurrentView('veiculos')} 
+                className={`nav-item ${currentView === 'veiculos' ? 'active' : ''}`}
+              >
+                🚗 Veículos
+              </button>
+            )}
           </div>
           
           <div className="nav-user">
-            <span className="user-info">
-              👤 {user?.email} ({userRole || 'Usuário'})
-            </span>
+            <div className="user-info">
+              <span className="user-name">👤 {user?.nome || user?.email || 'Usuário'}</span>
+              <span className="user-role">({userRole || 'Usuário'})</span>
+            </div>
             <button onClick={() => supabase.auth.signOut()} className="logout-button">
               🚪 Sair
             </button>
@@ -1002,6 +1859,281 @@ const Welcome = () => {
                   </button>
                   <button type="submit" className="submit-button">
                     {editingCliente ? 'Atualizar' : 'Cadastrar'} Cliente
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+        
+        {/* Formulário de Veículo */}
+        {showVeiculoForm && (
+          <div className="form-overlay">
+            <div className="form-modal">
+              <div className="modal-header">
+                <h3>{editingVeiculo ? 'Editar Veículo' : 'Cadastrar Novo Veículo'}</h3>
+                <button onClick={closeVeiculoForm} className="close-button">×</button>
+              </div>
+              
+              <form onSubmit={handleVeiculoFormSubmit} className="veiculo-form">
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="veiculo_nome">Nome/Modelo: *</label>
+                    <input
+                      type="text"
+                      id="veiculo_nome"
+                      value={veiculoFormData.veiculo}
+                      onChange={(e) => setVeiculoFormData({...veiculoFormData, veiculo: e.target.value})}
+                      required
+                      placeholder="Ex: Fiat Strada, Ford Transit, etc."
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label htmlFor="veiculo_placa">Placa: *</label>
+                    <input
+                      type="text"
+                      id="veiculo_placa"
+                      value={veiculoFormData.placa}
+                      onChange={(e) => setVeiculoFormData({...veiculoFormData, placa: e.target.value})}
+                      required
+                      placeholder="Ex: ABC-1234"
+                    />
+                  </div>
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="veiculo_ativo">Status:</label>
+                  <select
+                    id="veiculo_ativo"
+                    value={veiculoFormData.ativo}
+                    onChange={(e) => setVeiculoFormData({...veiculoFormData, ativo: e.target.value === 'true'})}
+                  >
+                    <option value={true}>✅ Ativo</option>
+                    <option value={false}>❌ Inativo</option>
+                  </select>
+                </div>
+                
+                <div className="form-actions">
+                  <button type="button" onClick={closeVeiculoForm} className="cancel-button">
+                    Cancelar
+                  </button>
+                  <button type="submit" className="submit-button">
+                    {editingVeiculo ? 'Atualizar' : 'Cadastrar'} Veículo
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+        
+        {/* Formulário de Cargo */}
+        {showCargoForm && (
+          <div className="form-overlay">
+            <div className="form-modal">
+              <div className="modal-header">
+                <h3>{editingCargo ? 'Editar Cargo' : 'Cadastrar Novo Cargo'}</h3>
+                <button onClick={closeCargoForm} className="close-button">×</button>
+              </div>
+              
+              <form onSubmit={handleCargoFormSubmit} className="cargo-form">
+                <div className="form-group">
+                  <label htmlFor="cargo_nome">Nome do Cargo: *</label>
+                  <input
+                    type="text"
+                    id="cargo_nome"
+                    value={cargoFormData.cargo}
+                    onChange={(e) => setCargoFormData({...cargoFormData, cargo: e.target.value})}
+                    required
+                    placeholder="Ex: Pedreiro, Eletricista, etc."
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="cargo_ativo">Status:</label>
+                  <select
+                    id="cargo_ativo"
+                    value={cargoFormData.ativo}
+                    onChange={(e) => setCargoFormData({...cargoFormData, ativo: e.target.value === 'true'})}
+                  >
+                    <option value={true}>✅ Ativo</option>
+                    <option value={false}>❌ Inativo</option>
+                  </select>
+                </div>
+                
+                <div className="form-actions">
+                  <button type="button" onClick={closeCargoForm} className="cancel-button">
+                    Cancelar
+                  </button>
+                  <button type="submit" className="submit-button">
+                    {editingCargo ? 'Atualizar' : 'Cadastrar'} Cargo
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+        
+        {/* Formulário de Colaborador */}
+        {showColaboradorForm && (
+          <div className="form-overlay">
+            <div className="form-modal">
+              <div className="modal-header">
+                <h3>{editingColaborador ? 'Editar Colaborador' : 'Cadastrar Novo Colaborador'}</h3>
+                <button onClick={closeColaboradorForm} className="close-button">×</button>
+              </div>
+              
+              <form onSubmit={handleColaboradorFormSubmit} className="colaborador-form">
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="nome_colaborador">Nome: *</label>
+                    <input
+                      type="text"
+                      id="nome_colaborador"
+                      value={colaboradorFormData.nome}
+                      onChange={(e) => setColaboradorFormData({...colaboradorFormData, nome: e.target.value})}
+                      required
+                    />
+                  </div>
+                  
+                                     <div className="form-group">
+                     <label htmlFor="cargo_colaborador">Cargo: *</label>
+                     <select
+                       id="cargo_colaborador"
+                       value={colaboradorFormData.cargo}
+                       onChange={(e) => setColaboradorFormData({...colaboradorFormData, cargo: e.target.value})}
+                       required
+                     >
+                       <option value="">Selecione um cargo</option>
+                       {cargos.map((cargo) => (
+                         <option key={cargo.id} value={cargo.cargo}>
+                           {cargo.ativo ? '✅' : '❌'} {cargo.cargo}
+                         </option>
+                       ))}
+                     </select>
+                   </div>
+                </div>
+                
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="email_colaborador">Email:</label>
+                    <input
+                      type="email"
+                      id="email_colaborador"
+                      value={colaboradorFormData.email}
+                      onChange={(e) => setColaboradorFormData({...colaboradorFormData, email: e.target.value})}
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label htmlFor="chave_pix_colaborador">Chave PIX:</label>
+                    <input
+                      type="text"
+                      id="chave_pix_colaborador"
+                      value={colaboradorFormData.chave_pix}
+                      onChange={(e) => setColaboradorFormData({...colaboradorFormData, chave_pix: e.target.value})}
+                      placeholder="Chave PIX para pagamentos"
+                    />
+                  </div>
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="ativo_colaborador">Status:</label>
+                  <select
+                    id="ativo_colaborador"
+                    value={colaboradorFormData.ativo}
+                    onChange={(e) => setColaboradorFormData({...colaboradorFormData, ativo: e.target.value === 'true'})}
+                  >
+                    <option value={true}>✅ Ativo</option>
+                    <option value={false}>❌ Inativo</option>
+                  </select>
+                </div>
+                
+                <div className="form-actions">
+                  <button type="button" onClick={closeColaboradorForm} className="cancel-button">
+                    Cancelar
+                  </button>
+                  <button type="submit" className="submit-button">
+                    {editingColaborador ? 'Atualizar' : 'Cadastrar'} Colaborador
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+        
+        {/* Formulário de Usuário */}
+        {showUsuarioForm && (
+          <div className="form-overlay">
+            <div className="form-modal">
+              <div className="modal-header">
+                <h3>{editingUsuario ? 'Editar Usuário' : 'Cadastrar Novo Usuário'}</h3>
+                <button onClick={closeUsuarioForm} className="close-button">×</button>
+              </div>
+              
+              <form onSubmit={handleUsuarioFormSubmit} className="usuario-form">
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="nome_usuario">Nome: *</label>
+                    <input
+                      type="text"
+                      id="nome_usuario"
+                      value={usuarioFormData.nome}
+                      onChange={(e) => setUsuarioFormData({...usuarioFormData, nome: e.target.value})}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label htmlFor="email_usuario">Email: *</label>
+                    <input
+                      type="email"
+                      id="email_usuario"
+                      value={usuarioFormData.email}
+                      onChange={(e) => setUsuarioFormData({...usuarioFormData, email: e.target.value})}
+                      required
+                    />
+                  </div>
+                </div>
+                
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="role_usuario">Função: *</label>
+                    <select
+                      id="role_usuario"
+                      value={usuarioFormData.role}
+                      onChange={(e) => setUsuarioFormData({...usuarioFormData, role: e.target.value})}
+                      required
+                    >
+                      <option value="">Selecione uma função</option>
+                      {cargos.map((cargo) => (
+                        <option key={cargo.id} value={cargo.cargo}>
+                          {cargo.ativo ? '✅' : '❌'} {cargo.cargo}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div className="form-group">
+                    <label htmlFor="status_usuario">Status: *</label>
+                    <select
+                      id="status_usuario"
+                      value={usuarioFormData.status}
+                      onChange={(e) => setUsuarioFormData({...usuarioFormData, status: e.target.value})}
+                      required
+                    >
+                      <option value="ativo">✅ Ativo</option>
+                      <option value="inativo">❌ Inativo</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div className="form-actions">
+                  <button type="button" onClick={closeUsuarioForm} className="cancel-button">
+                    Cancelar
+                  </button>
+                  <button type="submit" className="submit-button">
+                    {editingUsuario ? 'Atualizar' : 'Cadastrar'} Usuário
                   </button>
                 </div>
               </form>
