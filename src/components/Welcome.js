@@ -59,7 +59,8 @@ const Welcome = () => {
     data_cadastro_preenchido: '',
     cliente_id: '',
     equipe_id: '',
-    observacoes: ''
+    observacoes: '',
+    colaboradores: [] // Array de IDs dos colaboradores selecionados
   })
   
   // Estados para equipes
@@ -1149,7 +1150,35 @@ const Welcome = () => {
         .order('data_presenca', { ascending: false })
       
       if (error) throw error
-      setPresencas(data || [])
+      
+      // Carregar colaboradores para cada presença
+      if (data && data.length > 0) {
+        const presencasComColaboradores = await Promise.all(
+          data.map(async (presenca) => {
+            const { data: colaboradoresData, error: colaboradoresError } = await supabase
+              .from('presenca_colaboradores')
+              .select(`
+                colaborador_id,
+                colaborador:colaborador_id(id, nome, cargo)
+              `)
+              .eq('presenca_id', presenca.id)
+            
+            if (colaboradoresError) {
+              console.error('Erro ao carregar colaboradores da presença:', colaboradoresError)
+              return { ...presenca, colaboradores: [] }
+            }
+            
+            return {
+              ...presenca,
+              colaboradores: colaboradoresData?.map(c => c.colaborador_id) || []
+            }
+          })
+        )
+        
+        setPresencas(presencasComColaboradores)
+      } else {
+        setPresencas([])
+      }
     } catch (error) {
       console.error('Erro ao carregar presenças:', error)
       setPresencas([])
@@ -1569,7 +1598,8 @@ const Welcome = () => {
       data_cadastro_preenchido: new Date().toISOString().split('T')[0],
       cliente_id: cliente ? cliente.id : '',
       equipe_id: '',
-      observacoes: ''
+      observacoes: '',
+      colaboradores: [] // Inicializar array vazio de colaboradores
     })
     setShowPresencaForm(true)
   }
@@ -1583,7 +1613,8 @@ const Welcome = () => {
       data_cadastro_preenchido: '',
       cliente_id: '',
       equipe_id: '',
-      observacoes: ''
+      observacoes: '',
+      colaboradores: []
     })
   }
   
@@ -1591,7 +1622,21 @@ const Welcome = () => {
   const handlePresencaFormSubmit = async (e) => {
     e.preventDefault()
     
+    // Validação: cliente é obrigatório
+    if (!presencaFormData.cliente_id) {
+      showNotification('Por favor, selecione um cliente.', 'error')
+      return
+    }
+    
+    // Validação: pelo menos um colaborador deve ser selecionado
+    if (!presencaFormData.colaboradores || presencaFormData.colaboradores.length === 0) {
+      showNotification('Por favor, selecione pelo menos um colaborador.', 'error')
+      return
+    }
+    
     try {
+      let presencaId
+      
       if (editingPresenca) {
         // Atualizar presença existente
         const { error } = await supabase
@@ -1601,16 +1646,59 @@ const Welcome = () => {
         
         if (error) throw error
         
+        presencaId = editingPresenca.id
         showNotification('Presença atualizada com sucesso!', 'success')
       } else {
         // Criar nova presença
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('presenca')
           .insert([presencaFormData])
+          .select('id')
         
         if (error) throw error
         
+        presencaId = data[0].id
         showNotification('Presença cadastrada com sucesso!', 'success')
+      }
+      
+      // Salvar colaboradores na tabela presenca_colaboradores
+      if (presencaId && presencaFormData.colaboradores && presencaFormData.colaboradores.length > 0) {
+        try {
+          // Se for edição, primeiro deletar colaboradores existentes
+          if (editingPresenca) {
+            const { error: deleteError } = await supabase
+              .from('presenca_colaboradores')
+              .delete()
+              .eq('presenca_id', presencaId)
+            
+            if (deleteError) {
+              console.error('Erro ao deletar colaboradores existentes:', deleteError)
+              throw deleteError
+            }
+          }
+          
+          // Inserir novos colaboradores
+          const colaboradoresData = presencaFormData.colaboradores.map(colaboradorId => ({
+            presenca_id: presencaId,
+            colaborador_id: colaboradorId,
+            presente: true, // Por padrão, todos estão presentes
+            observacoes: 'Presente'
+          }))
+          
+          const { error: colaboradoresError } = await supabase
+            .from('presenca_colaboradores')
+            .insert(colaboradoresData)
+          
+          if (colaboradoresError) {
+            console.error('Erro ao salvar colaboradores:', colaboradoresError)
+            throw colaboradoresError
+          }
+          
+          console.log('✅ Colaboradores salvos com sucesso para presença:', presencaId)
+        } catch (error) {
+          console.error('Erro ao salvar colaboradores:', error)
+          showNotification('Presença salva, mas houve erro ao salvar colaboradores: ' + error.message, 'warning')
+        }
       }
       
       closePresencaForm()
@@ -2486,6 +2574,7 @@ const Welcome = () => {
                 <th>Data da Presença</th>
                 <th>Cliente</th>
                 <th>Equipe</th>
+                <th>Colaboradores</th>
                 <th>Observações</th>
                 <th>Ações</th>
               </tr>
@@ -2493,7 +2582,7 @@ const Welcome = () => {
             <tbody>
               {presencas.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="no-data">
+                  <td colSpan="6" className="no-data">
                     Nenhuma presença registrada ainda.
                   </td>
                 </tr>
@@ -2503,6 +2592,22 @@ const Welcome = () => {
                     <td>{formatarData(presenca.data_presenca)}</td>
                     <td>{presenca.cliente?.nome_cliente || 'N/A'}</td>
                     <td>{presenca.equipe?.nome || 'N/A'}</td>
+                    <td>
+                      {presenca.colaboradores && presenca.colaboradores.length > 0 ? (
+                        <div className="colaboradores-pills">
+                          {presenca.colaboradores.map((colaboradorId, index) => {
+                            const colaborador = colaboradores.find(c => c.id === colaboradorId)
+                            return colaborador ? (
+                              <span key={colaboradorId} className="colaborador-pill">
+                                {colaborador.nome}
+                              </span>
+                            ) : null
+                          })}
+                        </div>
+                      ) : (
+                        <span className="no-colaboradores">Nenhum colaborador</span>
+                      )}
+                    </td>
                     <td>{presenca.observacoes || 'N/A'}</td>
                     <td>
                       <div className="action-buttons">
@@ -2514,7 +2619,8 @@ const Welcome = () => {
                               data_cadastro_preenchido: presenca.data_cadastro_preenchido,
                               cliente_id: presenca.cliente_id,
                               equipe_id: presenca.equipe_id,
-                              observacoes: presenca.observacoes
+                              observacoes: presenca.observacoes,
+                              colaboradores: presenca.colaboradores || [] // Carregar colaboradores existentes
                             })
                             setShowPresencaForm(true)
                           }} 
@@ -3537,13 +3643,14 @@ const Welcome = () => {
                 
                 <div className="form-row">
                   <div className="form-group">
-                    <label htmlFor="cliente_id">Cliente:</label>
+                    <label htmlFor="cliente_id">Cliente: *</label>
                     <select
                       id="cliente_id"
                       value={presencaFormData.cliente_id}
                       onChange={(e) => setPresencaFormData({...presencaFormData, cliente_id: e.target.value})}
+                      required
                     >
-                      <option value="">Selecione um cliente (opcional)</option>
+                      <option value="">Selecione um cliente</option>
                       {clientes.map(cliente => (
                         <option key={cliente.id} value={cliente.id}>
                           {cliente.nome_cliente}
@@ -3567,6 +3674,112 @@ const Welcome = () => {
                         </option>
                       ))}
                     </select>
+                  </div>
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="colaboradores">Colaboradores: *</label>
+                  <div className="colaboradores-selection">
+                    {/* Botões de ação rápida */}
+                    <div className="colaboradores-actions">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const todosAtivos = colaboradores.filter(c => c.ativo).map(c => c.id)
+                          setPresencaFormData({
+                            ...presencaFormData,
+                            colaboradores: todosAtivos
+                          })
+                        }}
+                        className="action-button select-all"
+                        title="Selecionar todos os colaboradores ativos"
+                      >
+                        ✅ Selecionar Todos
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPresencaFormData({
+                            ...presencaFormData,
+                            colaboradores: []
+                          })
+                        }}
+                        className="action-button clear-all"
+                        title="Limpar seleção"
+                      >
+                        🗑️ Limpar Seleção
+                      </button>
+                    </div>
+                    
+                    {/* Grid responsivo de colaboradores */}
+                    <div className="colaboradores-grid">
+                      {colaboradores.filter(c => c.ativo).map((colaborador) => (
+                        <label key={colaborador.id} className="colaborador-checkbox">
+                          <input
+                            type="checkbox"
+                            checked={presencaFormData.colaboradores.includes(colaborador.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setPresencaFormData({
+                                  ...presencaFormData,
+                                  colaboradores: [...presencaFormData.colaboradores, colaborador.id]
+                                })
+                              } else {
+                                setPresencaFormData({
+                                  ...presencaFormData,
+                                  colaboradores: presencaFormData.colaboradores.filter(id => id !== colaborador.id)
+                                })
+                              }
+                            }}
+                          />
+                          <span className="checkbox-label">
+                            <strong>{colaborador.nome}</strong>
+                            <small>{colaborador.cargo}</small>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    
+                    {/* Contador e colaboradores selecionados */}
+                    <div className="colaboradores-summary">
+                      <div className="selection-count">
+                        <span className="count-badge">
+                          {presencaFormData.colaboradores.length} de {colaboradores.filter(c => c.ativo).length} colaboradores selecionados
+                        </span>
+                      </div>
+                      
+                      {presencaFormData.colaboradores.length > 0 && (
+                        <div className="colaboradores-selecionados">
+                          <h4>Colaboradores Selecionados:</h4>
+                          <div className="selected-pills">
+                            {presencaFormData.colaboradores.map((colaboradorId) => {
+                              const colaborador = colaboradores.find(c => c.id === colaboradorId)
+                              return colaborador ? (
+                                <span key={colaboradorId} className="selected-pill">
+                                  <span className="pill-content">
+                                    <strong>{colaborador.nome}</strong>
+                                    <small>{colaborador.cargo}</small>
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setPresencaFormData({
+                                        ...presencaFormData,
+                                        colaboradores: presencaFormData.colaboradores.filter(id => id !== colaboradorId)
+                                      })
+                                    }}
+                                    className="remove-colaborador"
+                                    title="Remover colaborador"
+                                  >
+                                    ×
+                                  </button>
+                                </span>
+                              ) : null
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
                 

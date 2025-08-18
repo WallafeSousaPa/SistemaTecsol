@@ -5822,4 +5822,288 @@ th {
   }
 }
 
+/* Estilos para seleção de colaboradores no formulário de presença */
+.colaboradores-selection {
+  margin-top: 10px;
+}
+
+/* Botões de ação rápida */
+.colaboradores-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+}
+
+.action-button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.action-button.select-all {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.action-button.select-all:hover {
+  background-color: #45a049;
+  transform: translateY(-1px);
+}
+
+.action-button.clear-all {
+  background-color: #f44336;
+  color: white;
+}
+
+.action-button.clear-all:hover {
+  background-color: #da190b;
+  transform: translateY(-1px);
+}
+
+/* Grid responsivo de colaboradores */
+.colaboradores-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 15px;
+  max-height: 350px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 15px;
+  background-color: #f9f9f9;
+  margin-bottom: 15px;
+}
+
+/* Responsividade para dispositivos móveis */
+@media (max-width: 768px) {
+  .colaboradores-grid {
+    grid-template-columns: 1fr;
+    max-height: 250px;
+  }
+  
+  .colaboradores-actions {
+    flex-direction: column;
+  }
+  
+  .action-button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .colaboradores-grid {
+    padding: 10px;
+    gap: 10px;
+  }
+}
+
+.colaborador-checkbox {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.colaborador-checkbox:hover {
+  border-color: #007bff;
+  box-shadow: 0 2px 4px rgba(0, 123, 255, 0.1);
+}
+
+.colaborador-checkbox input[type="checkbox"] {
+  margin-right: 12px;
+  transform: scale(1.2);
+  accent-color: #007bff;
+}
+
+.checkbox-label {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.checkbox-label strong {
+  font-size: 14px;
+  color: #333;
+  margin-bottom: 2px;
+}
+
+.checkbox-label small {
+  font-size: 12px;
+  color: #666;
+  font-style: italic;
+}
+
+/* Contador de seleção */
+.colaboradores-summary {
+  margin-top: 15px;
+}
+
+.selection-count {
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+.count-badge {
+  display: inline-block;
+  background-color: #6c757d;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.colaboradores-selecionados {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #e8f4fd;
+  border-radius: 8px;
+  border: 1px solid #bee5eb;
+}
+
+.colaboradores-selecionados h4 {
+  margin: 0 0 15px 0;
+  color: #0c5460;
+  font-size: 16px;
+}
+
+.selected-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.selected-pill {
+  display: inline-flex;
+  align-items: center;
+  background-color: #007bff;
+  color: white;
+  padding: 8px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.selected-pill:hover {
+  background-color: #0056b3;
+  transform: translateY(-1px);
+}
+
+.pill-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.pill-content strong {
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+
+.pill-content small {
+  font-size: 11px;
+  opacity: 0.9;
+}
+
+.remove-colaborador {
+  background: none;
+  border: none;
+  color: white;
+  margin-left: 8px;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+}
+
+.remove-colaborador:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+}
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background-color 0.2s ease;
+}
+
+.remove-colaborador:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Estilos para a tabela de presenças com colaboradores */
+.colaboradores-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.colaborador-pill {
+  background-color: #e9ecef;
+  color: #495057;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid #dee2e6;
+}
+
+.no-colaboradores {
+  color: #6c757d;
+  font-style: italic;
+  font-size: 12px;
+}
+
+/* Responsividade para dispositivos móveis */
+@media (max-width: 768px) {
+  .colaboradores-grid {
+    grid-template-columns: 1fr;
+    max-height: 250px;
+  }
+  
+  .colaborador-checkbox {
+    padding: 8px;
+  }
+  
+  .checkbox-label strong {
+    font-size: 13px;
+  }
+  
+  .checkbox-label small {
+    font-size: 11px;
+  }
+  
+  .selected-pills {
+    gap: 8px;
+  }
+  
+  .selected-pill {
+    font-size: 12px;
+    padding: 5px 10px;
+  }
+}
+
 
