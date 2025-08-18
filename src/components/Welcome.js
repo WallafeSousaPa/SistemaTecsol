@@ -999,18 +999,45 @@ const Welcome = () => {
   // Carregar responsáveis de um cliente
   const loadResponsaveisCliente = async (clienteId) => {
     try {
+      console.log('🔍 Carregando responsáveis para cliente:', clienteId)
+      console.log('🔍 Tipo do clienteId:', typeof clienteId)
+      
       const { data, error } = await supabase
         .from('clientes_usuarios')
         .select('profile_id')
         .eq('cliente_id', clienteId)
         .eq('ativo', true)
       
-      if (error) throw error
+      if (error) {
+        console.error('❌ Erro na query de responsáveis:', error)
+        console.error('❌ Detalhes do erro:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        })
+        throw error
+      }
+      
+      console.log('📋 Responsáveis encontrados (raw data):', data)
+      console.log('📋 Tipo dos dados:', typeof data)
+      console.log('📋 É array?', Array.isArray(data))
       
       // Retornar array de IDs dos responsáveis
-      return data ? data.map(item => item.profile_id) : []
+      const responsaveisIds = data ? data.map(item => {
+        console.log('🔍 Item do responsável:', item)
+        console.log('🔍 profile_id do item:', item.profile_id)
+        return item.profile_id
+      }) : []
+      
+      console.log('🆔 IDs dos responsáveis mapeados:', responsaveisIds)
+      console.log('🆔 Tipo do array retornado:', typeof responsaveisIds)
+      console.log('🆔 É array?', Array.isArray(responsaveisIds))
+      
+      return responsaveisIds
     } catch (error) {
-      console.error('Erro ao carregar responsáveis do cliente:', error)
+      console.error('❌ Erro ao carregar responsáveis do cliente:', error)
+      console.error('❌ Stack trace:', error.stack)
       return []
     }
   }
@@ -1332,30 +1359,75 @@ const Welcome = () => {
       
       // Salvar responsáveis na tabela clientes_usuarios
       if (clienteId && id_profiles && id_profiles.length > 0) {
-        // Primeiro, desativar todas as relações existentes para este cliente
-        if (editingCliente) {
-          await supabase
+        console.log('🔧 Salvando responsáveis para cliente:', clienteId)
+        console.log('👥 IDs dos responsáveis:', id_profiles)
+        
+        try {
+          // Para edição, usar UPSERT para evitar violação de constraint única
+          if (editingCliente) {
+            console.log('🔄 Atualizando relações existentes para cliente:', clienteId)
+            
+            // Primeiro, desativar todas as relações existentes
+            const { error: deactivateError } = await supabase
+              .from('clientes_usuarios')
+              .update({ ativo: false })
+              .eq('cliente_id', clienteId)
+            
+            if (deactivateError) {
+              console.error('❌ Erro ao desativar relações existentes:', deactivateError)
+              throw deactivateError
+            }
+            console.log('✅ Relações existentes desativadas com sucesso')
+          }
+          
+          // Preparar dados para inserção usando UPSERT
+          const responsaveisData = id_profiles.map(profileId => ({
+            cliente_id: clienteId,
+            profile_id: profileId,
+            tipo_relacao: 'instalador',
+            ativo: true
+          }))
+          
+          console.log('🔍 Verificando dados antes da inserção:')
+          console.log('  - clienteId (tipo):', typeof clienteId, clienteId)
+          console.log('  - profileId (tipo):', typeof id_profiles[0], id_profiles[0])
+          console.log('  - responsaveisData:', responsaveisData)
+          
+          console.log('📝 Dados dos responsáveis a serem inseridos:', responsaveisData)
+          
+          // Usar UPSERT para inserir/atualizar relações
+          // Se houver conflito (mesmo cliente_id, profile_id, tipo_relacao), atualizar
+          const { data: insertData, error: responsaveisError } = await supabase
             .from('clientes_usuarios')
-            .update({ ativo: false })
-            .eq('cliente_id', clienteId)
+            .upsert(responsaveisData, {
+              onConflict: 'cliente_id,profile_id,tipo_relacao',
+              ignoreDuplicates: false
+            })
+            .select()
+          
+          if (responsaveisError) {
+            console.error('❌ Erro ao salvar responsáveis:', responsaveisError)
+            console.error('❌ Detalhes do erro:', {
+              message: responsaveisError.message,
+              details: responsaveisError.details,
+              hint: responsaveisError.hint,
+              code: responsaveisError.code
+            })
+            showNotification('Cliente salvo, mas houve erro ao salvar responsáveis: ' + responsaveisError.message, 'warning')
+          } else {
+            console.log('✅ Responsáveis salvos com sucesso')
+            console.log('✅ Dados retornados da inserção:', insertData)
+            showNotification('Cliente e responsáveis salvos com sucesso!', 'success')
+          }
+        } catch (error) {
+          console.error('❌ Erro geral ao salvar responsáveis:', error)
+          console.error('❌ Stack trace:', error.stack)
+          showNotification('Cliente salvo, mas houve erro ao salvar responsáveis: ' + error.message, 'warning')
         }
-        
-        // Inserir novas relações
-        const responsaveisData = id_profiles.map(profileId => ({
-          cliente_id: clienteId,
-          profile_id: profileId,
-          tipo_relacao: 'instalador',
-          ativo: true
-        }))
-        
-        const { error: responsaveisError } = await supabase
-          .from('clientes_usuarios')
-          .insert(responsaveisData)
-        
-        if (responsaveisError) {
-          console.error('Erro ao salvar responsáveis:', responsaveisError)
-          showNotification('Cliente salvo, mas houve erro ao salvar responsáveis', 'warning')
-        }
+      } else {
+        console.log('⚠️ Não há responsáveis para salvar ou dados inválidos')
+        console.log('  - clienteId:', clienteId)
+        console.log('  - id_profiles:', id_profiles)
       }
       
       closeClienteForm()
