@@ -1147,12 +1147,12 @@ const Welcome = () => {
     try {
       const { data, error } = await supabase
         .from('presenca')
-        .select(`
-          *,
-          cliente:cliente_id(nome_cliente),
-          equipe:equipe_id(nome),
-          veiculo:veiculo_id(veiculo, placa)
-        `)
+                        .select(`
+                  *,
+                  cliente:cliente_id(nome_cliente),
+                  equipe:equipe_id(nome),
+                  veiculo:veiculo_id(veiculo, placa)
+                `)
         .order('data_presenca', { ascending: false })
       
       if (error) throw error
@@ -1660,11 +1660,22 @@ const Welcome = () => {
     try {
       let presencaId
       
+      // Preparar dados para salvar
+      const dadosParaSalvar = {
+        data_presenca: presencaFormData.data_presenca,
+        data_cadastro_preenchido: presencaFormData.data_cadastro_preenchido,
+        cliente_id: presencaFormData.cliente_id,
+        equipe_id: presencaFormData.equipe_id,
+        veiculo_id: presencaFormData.veiculo_id,
+        km_inicial: presencaFormData.km_inicial,
+        observacoes: presencaFormData.observacoes
+      }
+      
       if (editingPresenca) {
         // Atualizar presença existente
         const { error } = await supabase
           .from('presenca')
-          .update(presencaFormData)
+          .update(dadosParaSalvar)
           .eq('id', editingPresenca.id)
         
         if (error) throw error
@@ -1675,7 +1686,7 @@ const Welcome = () => {
         // Criar nova presença
         const { data, error } = await supabase
           .from('presenca')
-          .insert([presencaFormData])
+          .insert([dadosParaSalvar])
           .select('id')
         
         if (error) throw error
@@ -2660,7 +2671,7 @@ const Welcome = () => {
                             setPresencaFormData({
                               data_presenca: presenca.data_presenca,
                               data_cadastro_preenchido: presenca.data_cadastro_preenchido,
-                              cliente_id: presenca.cliente_id,
+                                                              cliente_id: presenca.cliente_id || '',
                               equipe_id: presenca.equipe_id,
                               veiculo_id: presenca.veiculo_id || '',
                               km_inicial: presenca.km_inicial || '',
