@@ -6040,19 +6040,6 @@ th {
   background-color: rgba(255, 255, 255, 0.2);
   transform: scale(1.1);
 }
-  padding: 0;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  transition: background-color 0.2s ease;
-}
-
-.remove-colaborador:hover {
-  background-color: rgba(255, 255, 255, 0.2);
-}
 
 /* Estilos para a tabela de presenças com colaboradores */
 .colaboradores-pills {
@@ -6072,6 +6059,41 @@ th {
 }
 
 .no-colaboradores {
+  color: #6c757d;
+  font-style: italic;
+  font-size: 12px;
+}
+
+/* Estilos para informações de veículo e KM na tabela */
+.veiculo-info {
+  background-color: #e3f2fd;
+  color: #1565c0;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid #bbdefb;
+  display: inline-block;
+}
+
+.no-veiculo {
+  color: #6c757d;
+  font-style: italic;
+  font-size: 12px;
+}
+
+.km-info {
+  background-color: #f3e5f5;
+  color: #7b1fa2;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid #e1bee7;
+  display: inline-block;
+}
+
+.no-km {
   color: #6c757d;
   font-style: italic;
   font-size: 12px;

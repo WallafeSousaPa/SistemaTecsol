@@ -59,6 +59,8 @@ const Welcome = () => {
     data_cadastro_preenchido: '',
     cliente_id: '',
     equipe_id: '',
+    veiculo_id: '',
+    km_inicial: '',
     observacoes: '',
     colaboradores: [] // Array de IDs dos colaboradores selecionados
   })
@@ -104,6 +106,9 @@ const Welcome = () => {
     chave_pix: '',
     ativo: true
   })
+  
+  // Estados para carros/veículos
+  const [carros, setCarros] = useState([])
   
   // Estados para usuários do sistema
   const [usuarios, setUsuarios] = useState([])
@@ -1145,7 +1150,8 @@ const Welcome = () => {
         .select(`
           *,
           cliente:cliente_id(nome_cliente),
-          equipe:equipe_id(nome)
+          equipe:equipe_id(nome),
+          veiculo:veiculo_id(veiculo, placa)
         `)
         .order('data_presenca', { ascending: false })
       
@@ -1243,11 +1249,18 @@ const Welcome = () => {
       
       if (error) throw error
       setVeiculos(data || [])
+      setCarros(data || []) // Também atualiza o estado de carros
     } catch (error) {
       console.error('Erro ao carregar veículos:', error)
       setVeiculos([])
+      setCarros([])
     }
   }, [])
+  
+  // Alias para carregar carros (usa a mesma função de veículos)
+  const loadCarros = useCallback(async () => {
+    await loadVeiculos()
+  }, [loadVeiculos])
   
   // Aplicar filtros aos clientes
   const aplicarFiltrosClientes = useCallback(() => {
@@ -1598,6 +1611,8 @@ const Welcome = () => {
       data_cadastro_preenchido: new Date().toISOString().split('T')[0],
       cliente_id: cliente ? cliente.id : '',
       equipe_id: '',
+      veiculo_id: '',
+      km_inicial: '',
       observacoes: '',
       colaboradores: [] // Inicializar array vazio de colaboradores
     })
@@ -1613,6 +1628,8 @@ const Welcome = () => {
       data_cadastro_preenchido: '',
       cliente_id: '',
       equipe_id: '',
+      veiculo_id: '',
+      km_inicial: '',
       observacoes: '',
       colaboradores: []
     })
@@ -1625,6 +1642,12 @@ const Welcome = () => {
     // Validação: cliente é obrigatório
     if (!presencaFormData.cliente_id) {
       showNotification('Por favor, selecione um cliente.', 'error')
+      return
+    }
+    
+    // Validação: veículo é obrigatório
+    if (!presencaFormData.veiculo_id) {
+      showNotification('Por favor, selecione um carro/veículo.', 'error')
       return
     }
     
@@ -2574,6 +2597,8 @@ const Welcome = () => {
                 <th>Data da Presença</th>
                 <th>Cliente</th>
                 <th>Equipe</th>
+                <th>Carro/Veículo</th>
+                <th>KM Inicial</th>
                 <th>Colaboradores</th>
                 <th>Observações</th>
                 <th>Ações</th>
@@ -2582,7 +2607,7 @@ const Welcome = () => {
             <tbody>
               {presencas.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="no-data">
+                  <td colSpan="8" className="no-data">
                     Nenhuma presença registrada ainda.
                   </td>
                 </tr>
@@ -2592,6 +2617,24 @@ const Welcome = () => {
                     <td>{formatarData(presenca.data_presenca)}</td>
                     <td>{presenca.cliente?.nome_cliente || 'N/A'}</td>
                     <td>{presenca.equipe?.nome || 'N/A'}</td>
+                    <td>
+                      {presenca.veiculo ? (
+                        <span className="veiculo-info">
+                          {presenca.veiculo.veiculo} - {presenca.veiculo.placa}
+                        </span>
+                      ) : (
+                        <span className="no-veiculo">Nenhum veículo</span>
+                      )}
+                    </td>
+                    <td>
+                      {presenca.km_inicial ? (
+                        <span className="km-info">
+                          {presenca.km_inicial.toLocaleString()} km
+                        </span>
+                      ) : (
+                        <span className="no-km">N/A</span>
+                      )}
+                    </td>
                     <td>
                       {presenca.colaboradores && presenca.colaboradores.length > 0 ? (
                         <div className="colaboradores-pills">
@@ -2619,6 +2662,8 @@ const Welcome = () => {
                               data_cadastro_preenchido: presenca.data_cadastro_preenchido,
                               cliente_id: presenca.cliente_id,
                               equipe_id: presenca.equipe_id,
+                              veiculo_id: presenca.veiculo_id || '',
+                              km_inicial: presenca.km_inicial || '',
                               observacoes: presenca.observacoes,
                               colaboradores: presenca.colaboradores || [] // Carregar colaboradores existentes
                             })
@@ -3674,6 +3719,38 @@ const Welcome = () => {
                         </option>
                       ))}
                     </select>
+                  </div>
+                </div>
+                
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="veiculo_id">Carro/Veículo: *</label>
+                    <select
+                      id="veiculo_id"
+                      value={presencaFormData.veiculo_id}
+                      onChange={(e) => setPresencaFormData({...presencaFormData, veiculo_id: e.target.value})}
+                      required
+                    >
+                      <option value="">Selecione um carro/veículo</option>
+                      {carros.filter(c => c.ativo).map(carro => (
+                        <option key={carro.id} value={carro.id}>
+                          {carro.veiculo} - {carro.placa}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div className="form-group">
+                    <label htmlFor="km_inicial">KM Inicial:</label>
+                    <input
+                      type="number"
+                      id="km_inicial"
+                      value={presencaFormData.km_inicial}
+                      onChange={(e) => setPresencaFormData({...presencaFormData, km_inicial: e.target.value})}
+                      placeholder="Ex: 15000"
+                      min="0"
+                      step="1"
+                    />
                   </div>
                 </div>
                 
