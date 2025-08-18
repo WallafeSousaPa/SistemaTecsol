@@ -11,6 +11,7 @@ const Welcome = () => {
   const [currentView, setCurrentView] = useState('dashboard')
   const [user, setUser] = useState(null)
   const [userRole, setUserRole] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
   
   // Estados para alterar senha
   const [showChangePasswordForm, setShowChangePasswordForm] = useState(false)
@@ -27,6 +28,8 @@ const Welcome = () => {
   const [clientes, setClientes] = useState([])
   const [showClienteForm, setShowClienteForm] = useState(false)
   const [editingCliente, setEditingCliente] = useState(null)
+  const [showClienteModal, setShowClienteModal] = useState(false)
+  const [clienteModalData, setClienteModalData] = useState(null)
   const [clienteFormData, setClienteFormData] = useState({
     nome_cliente: '',
     endereco: '',
@@ -38,13 +41,13 @@ const Welcome = () => {
     equipe_id: '',
     data_cadastro: new Date().toISOString().split('T')[0],
     quantidade_modulos: 0,
-    deslocamento_material: false,
+    deslocamento_buscar_material: false,
     configuracao_inversor: false,
-    obra_civil: 'nao',
+    obra_civil: false,
     obra_cancelada: false,
     nota_material: false,
     observacoes: '',
-    status: 'pendente'
+    id_status: 1 // Status padrão: Pendente (ID 1)
   })
   
   // Estados para presença
@@ -67,6 +70,9 @@ const Welcome = () => {
   
      // Estados para tipos de padrão
    const [tiposPadrao, setTiposPadrao] = useState([])
+   
+   // Estados para status de clientes
+   const [statusClientes, setStatusClientes] = useState([])
    
    // Estados para formulários de tipos
    const [showTipoServicoForm, setShowTipoServicoForm] = useState(false)
@@ -810,42 +816,102 @@ const Welcome = () => {
   }, [navigate])
 
   // Carregar dados iniciais
-  useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        // Carregar usuário atual
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-          setUser(user)
-          
-          // Carregar perfil do usuário
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('nome, role')
-            .eq('id', user.id)
-            .single()
-          
-          if (profile) {
-            setUserRole(profile.role)
-            // Atualizar o usuário com o nome do perfil
-            setUser({...user, nome: profile.nome})
-          }
+  const loadInitialData = useCallback(async () => {
+    console.log('🚀 Iniciando carregamento de dados iniciais...')
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (user) {
+        console.log('👤 Usuário autenticado:', user.id)
+        
+        // Carregar perfil do usuário
+        console.log('🔍 Carregando perfil para usuário:', user.id)
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('nome, role, status')
+          .eq('id', user.id)
+          .single()
+        
+        if (profileError) {
+          console.error('❌ Erro ao carregar perfil:', profileError)
+          return
         }
         
-        // Carregar dados básicos
-        await Promise.all([
-          loadEquipes(),
-          loadTiposServico(),
-          loadTiposPadrao(),
-          loadUsuariosInstaladores()
-        ])
-      } catch (error) {
-        console.error('Erro ao carregar dados iniciais:', error)
+        console.log('📋 Perfil carregado:', profile)
+        console.log('🔍 Role encontrado:', profile.role)
+        console.log('🔍 Status encontrado:', profile.status)
+        console.log('🔍 Tipo do role:', typeof profile.role)
+        console.log('🔍 Role em minúsculo:', profile.role?.toLowerCase())
+        
+        // Verificar se o usuário está ativo e definir o role com case-insensitive
+        if (profile && profile.status === 'ativo') {
+          // Converter role para minúsculo para comparação case-insensitive
+          const roleLowerCase = profile.role?.toLowerCase()
+          console.log('✅ Usuário ativo, role em minúsculo:', roleLowerCase)
+          
+          // Definir userRole baseado no role em minúsculo
+          if (roleLowerCase === 'instalador') {
+            setUserRole('instalador')
+            console.log('✅ userRole definido como: instalador')
+          } else if (roleLowerCase === 'administrador') {
+            setUserRole('administrador')
+            console.log('✅ userRole definido como: administrador')
+          } else if (roleLowerCase === 'administrativo') {
+            setUserRole('administrativo')
+            console.log('✅ userRole definido como: administrativo')
+          } else {
+            console.log('⚠️ Role não reconhecido:', profile.role)
+            setUserRole(null)
+          }
+          
+          console.log('🔍 userRole definido:', roleLowerCase)
+        } else {
+          console.log('❌ Usuário inativo ou perfil não encontrado')
+          console.log('🔍 Status do perfil:', profile?.status)
+          // Logout automático para usuários inativos
+          await supabase.auth.signOut()
+          navigate('/login')
+          return
+        }
+        
+        setUser({...user, nome: profile.nome})
+      } else {
+        console.log('❌ Nenhum usuário autenticado encontrado')
       }
+    } catch (error) {
+      console.error('❌ Erro ao carregar dados iniciais:', error)
+    } finally {
+      console.log('🏁 Finalizando carregamento de dados iniciais, isLoading = false')
+      setIsLoading(false)
     }
-    
+  }, [navigate])
+
+  // Carregar dados iniciais quando o componente montar
+  useEffect(() => {
     loadInitialData()
-  }, [])
+  }, [loadInitialData])
+
+  // Carregar dados básicos após definir o userRole
+  useEffect(() => {
+    if (userRole && !isLoading) {
+      const loadBasicData = async () => {
+        try {
+          await Promise.all([
+            loadEquipes(),
+            loadTiposServico(),
+            loadTiposPadrao(),
+            loadStatusClientes(),
+            loadUsuariosInstaladores()
+          ])
+        } catch (error) {
+          console.error('Erro ao carregar dados básicos:', error)
+        }
+      }
+      
+      loadBasicData()
+    }
+  }, [userRole, isLoading])
   
   // Carregar equipes
   const loadEquipes = async () => {
@@ -893,62 +959,155 @@ const Welcome = () => {
        console.error('Erro ao carregar tipos de padrão:', error)
      }
    }
+   
+   // Carregar status dos clientes
+     const loadStatusClientes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('status_clientes')
+        .select('*')
+        .eq('ativo', true)
+        .order('id')
+      
+      if (error) throw error
+      setStatusClientes(data || [])
+    } catch (error) {
+      console.error('Erro ao carregar status dos clientes:', error)
+      setStatusClientes([])
+    }
+  }
   
   // Carregar usuários instaladores
   const loadUsuariosInstaladores = async () => {
     try {
-      // Primeiro carregar os cargos ativos
-      const { data: cargosAtivos, error: cargosError } = await supabase
-        .from('cargos')
-        .select('cargo')
-        .eq('ativo', true)
+      // Carregar usuários com role 'instalador' (case-insensitive)
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, nome, role')
+        .eq('status', 'ativo')
+        .ilike('role', 'instalador')
+        .order('nome')
       
-      if (cargosError) throw cargosError
-      
-      if (cargosAtivos && cargosAtivos.length > 0) {
-        const cargosNomes = cargosAtivos.map(c => c.cargo)
-        
-        // Carregar usuários com cargos ativos
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('id, nome, role')
-          .in('role', cargosNomes)
-          .order('nome')
-        
-        if (error) throw error
-        setUsuariosInstaladores(data || [])
-      } else {
-        setUsuariosInstaladores([])
-      }
+      if (error) throw error
+      setUsuariosInstaladores(data || [])
     } catch (error) {
       console.error('Erro ao carregar usuários instaladores:', error)
       setUsuariosInstaladores([])
     }
   }
   
+  // Carregar responsáveis de um cliente
+  const loadResponsaveisCliente = async (clienteId) => {
+    try {
+      const { data, error } = await supabase
+        .from('clientes_usuarios')
+        .select('profile_id')
+        .eq('cliente_id', clienteId)
+        .eq('ativo', true)
+      
+      if (error) throw error
+      
+      // Retornar array de IDs dos responsáveis
+      return data ? data.map(item => item.profile_id) : []
+    } catch (error) {
+      console.error('Erro ao carregar responsáveis do cliente:', error)
+      return []
+    }
+  }
+  
   // Carregar clientes
   const loadClientes = useCallback(async () => {
     try {
+      console.log('📋 Iniciando loadClientes...')
+      console.log('  - userRole:', userRole)
+      console.log('  - user.id:', user?.id)
+      
       let query = supabase
         .from('clientes')
         .select(`
           *,
           tipo_servico:tipo_servico_id(id, nome),
           tipo_padrao:tipo_padrao_id(id, nome),
-          profiles:clientes_usuarios!cliente_id(profile:profile_id(nome)),
-          equipe:equipe_id(nome)
+          responsaveis:clientes_usuarios!cliente_id(profile:profile_id(id, nome, role)),
+          equipe:equipe_id(nome),
+          status_info:id_status(id, status)
         `)
         .order('data_cadastro', { ascending: false })
       
+      // Se for instalador, filtrar apenas clientes associados a ele e com status específicos
+      if (userRole === 'instalador' && user?.id) {
+        console.log('🔍 Carregando clientes para instalador:', user.id)
+        
+        // Primeiro buscar os IDs dos clientes associados ao usuário
+        const { data: clientesUsuarios, error: errorRelacao } = await supabase
+          .from('clientes_usuarios')
+          .select('cliente_id')
+          .eq('profile_id', user.id)
+          .eq('ativo', true)
+        
+        if (errorRelacao) {
+          console.error('❌ Erro ao buscar relação cliente-usuário:', errorRelacao)
+          throw errorRelacao
+        }
+        
+        console.log('📋 Clientes associados encontrados:', clientesUsuarios)
+        
+        if (clientesUsuarios && clientesUsuarios.length > 0) {
+          const clienteIds = clientesUsuarios.map(cu => cu.cliente_id)
+          console.log('🆔 IDs dos clientes:', clienteIds)
+          
+          // Filtrar por clientes associados E por status específicos (Pendente ou Em andamento)
+          // Primeiro buscar os IDs dos status que queremos
+          const { data: statusIds, error: statusError } = await supabase
+            .from('status_clientes')
+            .select('id')
+            .in('status', ['Pendente', 'Em andamento'])
+            .eq('ativo', true)
+          
+          if (statusError) {
+            console.error('❌ Erro ao buscar IDs dos status:', statusError)
+            throw statusError
+          }
+          
+          if (statusIds && statusIds.length > 0) {
+            const statusIdsArray = statusIds.map(s => s.id)
+            console.log('🆔 IDs dos status válidos:', statusIdsArray)
+            
+            query = query
+              .in('id', clienteIds)
+              .in('id_status', statusIdsArray)
+          } else {
+            console.log('⚠️ Nenhum status válido encontrado')
+            setClientes([])
+            return
+          }
+          
+          console.log('🔍 Query filtrada para instalador criada')
+        } else {
+          // Se não há clientes associados, retornar array vazio
+          console.log('⚠️ Nenhum cliente associado encontrado para o instalador')
+          setClientes([])
+          return
+        }
+      } else {
+        console.log('🔍 Carregando clientes para usuário não-instalador')
+      }
+      
       const { data, error } = await query
       
-      if (error) throw error
+      if (error) {
+        console.error('❌ Erro na query de clientes:', error)
+        throw error
+      }
+      
+      console.log('✅ Clientes carregados com sucesso:', data?.length || 0)
+      console.log('📋 Dados dos clientes:', data)
       setClientes(data || [])
     } catch (error) {
-      console.error('Erro ao carregar clientes:', error)
+      console.error('❌ Erro ao carregar clientes:', error)
       setClientes([])
     }
-  }, [])
+  }, [userRole, user?.id])
   
   // Carregar presenças
   const loadPresencas = useCallback(async () => {
@@ -1038,6 +1197,13 @@ const Welcome = () => {
   const aplicarFiltrosClientes = useCallback(() => {
     let filtrados = [...clientes]
     
+    // Para instaladores, filtrar apenas por status específicos
+    if (userRole === 'instalador') {
+      filtrados = filtrados.filter(cliente =>
+        ['Pendente', 'Em andamento'].includes(cliente.status_info?.status)
+      )
+    }
+    
     if (filtrosCliente.nome_cliente) {
       filtrados = filtrados.filter(cliente =>
         cliente.nome_cliente.toLowerCase().includes(filtrosCliente.nome_cliente.toLowerCase())
@@ -1063,7 +1229,7 @@ const Welcome = () => {
     }
     
     return filtrados
-  }, [clientes, filtrosCliente])
+  }, [clientes, filtrosCliente, userRole])
   
   // Clientes filtrados
   const clientesFiltrados = aplicarFiltrosClientes()
@@ -1082,13 +1248,13 @@ const Welcome = () => {
       equipe_id: '',
       data_cadastro: new Date().toISOString().split('T')[0],
       quantidade_modulos: 0,
-      deslocamento_material: false,
+      deslocamento_buscar_material: false,
       configuracao_inversor: false,
-      obra_civil: 'nao',
+      obra_civil: false,
       obra_cancelada: false,
       nota_material: false,
       observacoes: '',
-      status: 'pendente'
+      id_status: 1 // Status padrão: Pendente (ID 1)
     })
     setShowClienteForm(true)
   }
@@ -1108,14 +1274,26 @@ const Welcome = () => {
       equipe_id: '',
       data_cadastro: new Date().toISOString().split('T')[0],
       quantidade_modulos: 0,
-      deslocamento_material: false,
+      deslocamento_buscar_material: false,
       configuracao_inversor: false,
-      obra_civil: 'nao',
+      obra_civil: false,
       obra_cancelada: false,
       nota_material: false,
       observacoes: '',
-      status: 'pendente'
+      id_status: 1 // Status padrão: Pendente (ID 1)
     })
+  }
+  
+  // Abrir modal de visualização do cliente
+  const openClienteModal = (cliente) => {
+    setClienteModalData(cliente)
+    setShowClienteModal(true)
+  }
+  
+  // Fechar modal de visualização do cliente
+  const closeClienteModal = () => {
+    setShowClienteModal(false)
+    setClienteModalData(null)
   }
   
   // Salvar cliente
@@ -1123,25 +1301,61 @@ const Welcome = () => {
     e.preventDefault()
     
     try {
+      let clienteId
+      
+      // Criar uma cópia limpa dos dados do cliente (sem campos de relacionamento)
+      const { id_profiles, ...clienteData } = clienteFormData
+      
       if (editingCliente) {
         // Atualizar cliente existente
         const { error } = await supabase
           .from('clientes')
-          .update(clienteFormData)
+          .update(clienteData)
           .eq('id', editingCliente.id)
         
         if (error) throw error
         
+        clienteId = editingCliente.id
         showNotification('Cliente atualizado com sucesso!', 'success')
       } else {
         // Criar novo cliente
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('clientes')
-          .insert([clienteFormData])
+          .insert([clienteData])
+          .select('id')
         
         if (error) throw error
         
+        clienteId = data[0].id
         showNotification('Cliente cadastrado com sucesso!', 'success')
+      }
+      
+      // Salvar responsáveis na tabela clientes_usuarios
+      if (clienteId && id_profiles && id_profiles.length > 0) {
+        // Primeiro, desativar todas as relações existentes para este cliente
+        if (editingCliente) {
+          await supabase
+            .from('clientes_usuarios')
+            .update({ ativo: false })
+            .eq('cliente_id', clienteId)
+        }
+        
+        // Inserir novas relações
+        const responsaveisData = id_profiles.map(profileId => ({
+          cliente_id: clienteId,
+          profile_id: profileId,
+          tipo_relacao: 'instalador',
+          ativo: true
+        }))
+        
+        const { error: responsaveisError } = await supabase
+          .from('clientes_usuarios')
+          .insert(responsaveisData)
+        
+        if (responsaveisError) {
+          console.error('Erro ao salvar responsáveis:', responsaveisError)
+          showNotification('Cliente salvo, mas houve erro ao salvar responsáveis', 'warning')
+        }
       }
       
       closeClienteForm()
@@ -1153,28 +1367,36 @@ const Welcome = () => {
   }
   
   // Editar cliente
-  const handleEditCliente = (cliente) => {
-    setEditingCliente(cliente)
-    setClienteFormData({
-      nome_cliente: cliente.nome_cliente || '',
-      endereco: cliente.endereco || '',
-      telefone: cliente.telefone || '',
-      data_instalacao: cliente.data_instalacao || '',
-      tipo_servico_id: cliente.tipo_servico_id || '',
-      tipo_padrao_id: cliente.tipo_padrao_id || '',
-      id_profiles: cliente.id_profiles || [],
-      equipe_id: cliente.equipe_id || '',
-      data_cadastro: cliente.data_cadastro || new Date().toISOString().split('T')[0],
-      quantidade_modulos: cliente.quantidade_modulos || 0,
-      deslocamento_material: cliente.deslocamento_material || false,
-      configuracao_inversor: cliente.configuracao_inversor || false,
-      obra_civil: cliente.obra_civil || 'nao',
-      obra_cancelada: cliente.obra_cancelada || false,
-      nota_material: cliente.nota_material || false,
-      observacoes: cliente.observacoes || '',
-      status: cliente.status || 'pendente'
-    })
-    setShowClienteForm(true)
+  const handleEditCliente = async (cliente) => {
+    try {
+      // Carregar responsáveis do cliente
+      const responsaveisIds = await loadResponsaveisCliente(cliente.id)
+      
+      setEditingCliente(cliente)
+      setClienteFormData({
+        nome_cliente: cliente.nome_cliente || '',
+        endereco: cliente.endereco || '',
+        telefone: cliente.telefone || '',
+        data_instalacao: cliente.data_instalacao || '',
+        tipo_servico_id: cliente.tipo_servico_id || '',
+        tipo_padrao_id: cliente.tipo_padrao_id || '',
+        id_profiles: responsaveisIds,
+        equipe_id: cliente.equipe_id || '',
+        data_cadastro: cliente.data_cadastro || new Date().toISOString().split('T')[0],
+        quantidade_modulos: cliente.quantidade_modulos || 0,
+        deslocamento_buscar_material: cliente.deslocamento_buscar_material || false,
+        configuracao_inversor: cliente.configuracao_inversor || false,
+        obra_civil: cliente.obra_civil || false,
+        obra_cancelada: cliente.obra_cancelada || false,
+        nota_material: cliente.nota_material || false,
+        observacoes: cliente.observacoes || '',
+        id_status: cliente.id_status || 1 // Status padrão: Pendente (ID 1)
+      })
+      setShowClienteForm(true)
+    } catch (error) {
+      console.error('Erro ao carregar responsáveis do cliente:', error)
+      showNotification('Erro ao carregar dados do cliente', 'error')
+    }
   }
   
   // Excluir cliente
@@ -1477,7 +1699,7 @@ const Welcome = () => {
             <div className="activity-item">
               <span className="activity-icon">👥</span>
               <span className="activity-text">
-                <strong>{clientes.filter(c => c.status === 'pendente').length}</strong> clientes pendentes
+                <strong>{clientes.filter(c => c.status_info?.status === 'Pendente').length}</strong> clientes pendentes
               </span>
             </div>
             
@@ -1518,8 +1740,8 @@ const Welcome = () => {
   
   // Renderizar lista de clientes
   const renderClientes = () => {
-    // Verificar se o usuário tem permissão para visualizar clientes (apenas administrador e administrativo)
-    if (!['administrador', 'administrativo'].includes(userRole)) {
+    // Verificar se o usuário tem permissão para visualizar clientes (apenas administrador, administrativo ou instalador)
+    if (!['administrador', 'administrativo', 'instalador'].includes(userRole)) {
       return (
         <div className="menu-content">
           <div className="menu-header">
@@ -1533,7 +1755,7 @@ const Welcome = () => {
             <div className="access-denied-icon">🚫</div>
             <h3>Acesso Negado</h3>
             <p>Você não tem permissão para visualizar esta seção.</p>
-            <p>Apenas usuários com perfil Administrador ou Administrativo podem acessar o cadastro de clientes.</p>
+            <p>Apenas usuários com perfil Administrador, Administrativo ou Instalador podem acessar o cadastro de clientes.</p>
           </div>
         </div>
       )
@@ -1542,17 +1764,21 @@ const Welcome = () => {
     return (
       <div className="menu-content">
         <div className="menu-header">
-          <h2>Cadastro de Clientes</h2>
-          <button onClick={() => setCurrentView('dashboard')} className="back-button">
-            ← Voltar ao Dashboard
-          </button>
+          <h2>{userRole === 'instalador' ? 'Meus Clientes' : 'Cadastro de Clientes'}</h2>
+          {userRole !== 'instalador' && (
+            <button onClick={() => setCurrentView('dashboard')} className="back-button">
+              ← Voltar ao Dashboard
+            </button>
+          )}
         </div>
         
-        <div className="clientes-actions">
-          <button onClick={openNewClienteForm} className="action-button primary">
-            ➕ Cadastrar Novo Cliente
-          </button>
-        </div>
+        {userRole !== 'instalador' && (
+          <div className="clientes-actions">
+            <button onClick={openNewClienteForm} className="action-button primary">
+              ➕ Cadastrar Novo Cliente
+            </button>
+          </div>
+        )}
         
         {/* Filtros de Pesquisa */}
         <div className="filtros-container">
@@ -1569,44 +1795,48 @@ const Welcome = () => {
               />
             </div>
             
-            <div className="filtro-item">
-              <label htmlFor="filtro-data-inicio">Data de Instalação - Início:</label>
-              <input
-                type="date"
-                id="filtro-data-inicio"
-                value={filtrosCliente.dataInicio}
-                onChange={(e) => setFiltrosCliente({...filtrosCliente, dataInicio: e.target.value})}
-              />
-            </div>
-            
-            <div className="filtro-item">
-              <label htmlFor="filtro-data-fim">Data de Instalação - Fim:</label>
-              <input
-                type="date"
-                id="filtro-data-fim"
-                value={filtrosCliente.dataFim}
-                onChange={(e) => setFiltrosCliente({...filtrosCliente, dataFim: e.target.value})}
-              />
-            </div>
-            
-            <div className="filtro-item">
-              <label htmlFor="filtro-tipo-servico">Tipo de Serviço:</label>
-              <select
-                id="filtro-tipo-servico"
-                value={filtrosCliente.tipoServicoId}
-                onChange={(e) => setFiltrosCliente({...filtrosCliente, tipoServicoId: e.target.value})}
-              >
-                <option value="">Todos os tipos</option>
-                {tiposServico.map((tipo) => (
-                  <option key={tipo.id} value={tipo.id}>{tipo.nome}</option>
-                ))}
-              </select>
-            </div>
+            {userRole !== 'instalador' && (
+              <>
+                <div className="filtro-item">
+                  <label htmlFor="filtro-data-inicio">Data de Instalação - Início:</label>
+                  <input
+                    type="date"
+                    id="filtro-data-inicio"
+                    value={filtrosCliente.dataInicio}
+                    onChange={(e) => setFiltrosCliente({...filtrosCliente, dataInicio: e.target.value})}
+                  />
+                </div>
+                
+                <div className="filtro-item">
+                  <label htmlFor="filtro-data-fim">Data de Instalação - Fim:</label>
+                  <input
+                    type="date"
+                    id="filtro-data-fim"
+                    value={filtrosCliente.dataFim}
+                    onChange={(e) => setFiltrosCliente({...filtrosCliente, dataFim: e.target.value})}
+                  />
+                </div>
+                
+                <div className="filtro-item">
+                  <label htmlFor="filtro-tipo-servico">Tipo de Serviço:</label>
+                  <select
+                    id="filtro-tipo-servico"
+                    value={filtrosCliente.tipoServicoId}
+                    onChange={(e) => setFiltrosCliente({...filtrosCliente, tipoServicoId: e.target.value})}
+                  >
+                    <option value="">Todos os tipos</option>
+                    {tiposServico.map((tipo) => (
+                      <option key={tipo.id} value={tipo.id}>{tipo.nome}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
           </div>
         </div>
         
         <div className="clientes-list">
-          <h3>Clientes Cadastrados ({clientesFiltrados.length} de {clientes.length})</h3>
+          <h3>{userRole === 'instalador' ? 'Meus Clientes' : 'Clientes Cadastrados'} ({clientesFiltrados.length} de {clientes.length})</h3>
           <div className="table-container">
             <table className="data-table">
               <thead>
@@ -1616,24 +1846,42 @@ const Welcome = () => {
                   <th>Tipo de Serviço</th>
                   <th>Tipo de Padrão</th>
                   <th>Quantidade de Módulos</th>
+                  <th>Status</th>
                   <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {clientesFiltrados.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="no-data">
+                    <td colSpan="7" className="no-data">
                       {clientes.length === 0 ? 'Nenhum cliente cadastrado ainda.' : 'Nenhum cliente encontrado com os filtros aplicados.'}
                     </td>
                   </tr>
                 ) : (
                   clientesFiltrados.map((cliente) => (
                     <tr key={cliente.id}>
-                      <td>{cliente.nome_cliente}</td>
+                      <td>
+                        <button 
+                          onClick={() => openClienteModal(cliente)} 
+                          className="cliente-name-button"
+                          title="Clique para ver detalhes do cliente"
+                        >
+                          {cliente.nome_cliente}
+                        </button>
+                      </td>
                       <td>{formatarData(cliente.data_instalacao)}</td>
                       <td>{cliente.tipo_servico?.nome || 'N/A'}</td>
                       <td>{cliente.tipo_padrao?.nome || 'N/A'}</td>
                       <td>{cliente.quantidade_modulos || 'N/A'}</td>
+                      <td>
+                        <span className={`status-badge status-${cliente.status_info?.status?.toLowerCase() || 'pendente'}`}>
+                          {cliente.status_info?.status === 'Pendente' ? '⏳ Pendente' : 
+                           cliente.status_info?.status === 'Em andamento' ? '🔄 Em Andamento' : 
+                           cliente.status_info?.status === 'Finalizado' ? '✅ Finalizado' : 
+                           cliente.status_info?.status === 'Validado' ? '🔍 Validado' : 
+                           '⏳ Pendente'}
+                        </span>
+                      </td>
                       <td>
                         <div className="action-buttons">
                           {security.hasPermission(userRole, 'CLIENT_MANAGEMENT', 'EDIT') && (
@@ -1655,14 +1903,6 @@ const Welcome = () => {
                               🗑️ Remover
                             </button>
                           )}
-                          
-                          <button 
-                            onClick={() => openNewPresencaForm(cliente)} 
-                            className="action-btn small info"
-                            title="Nova presença"
-                          >
-                            📋 Presença
-                          </button>
                         </div>
                       </td>
                     </tr>
@@ -2227,37 +2467,76 @@ const Welcome = () => {
   useEffect(() => {
     if (userRole) {
       loadClientes()
-      loadPresencas()
-      loadColaboradores()
-      loadUsuarios()
-      loadCargos()
-      loadVeiculos()
+      
+      // Instaladores não carregam dados desnecessários
+      if (userRole !== 'instalador') {
+        loadPresencas()
+        loadColaboradores()
+        loadUsuarios()
+        loadCargos()
+        loadVeiculos()
+      }
     }
   }, [userRole, loadClientes, loadPresencas, loadColaboradores, loadUsuarios, loadCargos, loadVeiculos])
   
-     // Renderizar conteúdo baseado na view atual
-   const renderContent = () => {
-     switch (currentView) {
-       case 'clientes':
-         return renderClientes()
-       case 'presenca':
-         return renderPresenca()
-       case 'colaboradores':
-         return renderColaboradores()
-       case 'usuarios':
-         return renderUsuarios()
-       case 'cargos':
-         return renderCargos()
-       case 'veiculos':
-         return renderVeiculos()
-       case 'tipos_servico':
-         return renderTiposServico()
-       case 'tipos_padrao':
-         return renderTiposPadrao()
-       default:
-         return renderDashboard()
-     }
-   }
+  // Renderizar conteúdo baseado na view atual
+  const renderContent = () => {
+    console.log('🎨 Renderizando conteúdo...')
+    console.log('  - userRole:', userRole)
+    console.log('  - currentView:', currentView)
+    console.log('  - clientes.length:', clientes.length)
+    
+    // Se for instalador, mostrar apenas clientes
+    if (userRole === 'instalador') {
+      console.log('🎯 Renderizando conteúdo para instalador')
+      return (
+        <div className="menu-content">
+          <div className="menu-header">
+            <h2>🔧 Perfil de Instalador</h2>
+          </div>
+          
+          <div style={{ 
+            background: '#f0f8ff', 
+            padding: '20px', 
+            borderRadius: '8px', 
+            margin: '20px 0',
+            border: '1px solid #007acc'
+          }}>
+            <h3>📋 Informações do Usuário</h3>
+            <p><strong>ID:</strong> {user?.id || 'N/A'}</p>
+            <p><strong>Nome:</strong> {user?.nome || user?.email || 'N/A'}</p>
+            <p><strong>Role:</strong> {userRole || 'N/A'}</p>
+            <p><strong>Clientes carregados:</strong> {clientes.length}</p>
+            <p><strong>Status:</strong> {isLoading ? 'Carregando...' : 'Pronto'}</p>
+          </div>
+          
+          {renderClientes()}
+        </div>
+      )
+    }
+    
+    console.log('🎨 Renderizando conteúdo para usuário não-instalador')
+    switch (currentView) {
+      case 'clientes':
+        return renderClientes()
+      case 'presenca':
+        return renderPresenca()
+      case 'colaboradores':
+        return renderColaboradores()
+      case 'usuarios':
+        return renderUsuarios()
+      case 'cargos':
+        return renderCargos()
+      case 'veiculos':
+        return renderVeiculos()
+      case 'tipos_servico':
+        return renderTiposServico()
+      case 'tipos_padrao':
+        return renderTiposPadrao()
+      default:
+        return renderDashboard()
+    }
+  }
   
   return (
     <>
@@ -2310,6 +2589,22 @@ const Welcome = () => {
       )}
       
       <div className="welcome-container">
+        {/* Loading state */}
+        {isLoading && (
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            alignItems: 'center', 
+            height: '200px',
+            fontSize: '18px',
+            color: '#666'
+          }}>
+            Carregando...
+          </div>
+        )}
+        
+
+        
         {/* Notificações */}
         <div className="notifications-container">
           {notifications.map((notification) => (
@@ -2320,6 +2615,7 @@ const Welcome = () => {
         </div>
         
         {/* Menu de navegação */}
+        {!isLoading && (
         <nav className="welcome-nav enhanced-header">
           <div className="nav-brand">
             <div className="brand-logo">
@@ -2331,6 +2627,12 @@ const Welcome = () => {
             </div>
           </div>
           
+
+          
+                  {/* Menu de navegação - apenas para não instaladores */}
+                {/* Menu de navegação - apenas para não instaladores */}
+        {console.log('🔍 Renderizando menu - userRole:', userRole, 'userRole !== "instalador":', userRole !== 'instalador')}
+        {userRole && userRole !== 'instalador' ? (
           <div className="nav-menu">
             <button 
               onClick={toggleHamburgerMenu} 
@@ -2431,6 +2733,17 @@ const Welcome = () => {
               )}
             </div>
           </div>
+        ) : (
+          <div style={{ 
+            padding: '10px', 
+            background: '#f0f8ff', 
+            borderRadius: '5px', 
+            margin: '10px',
+            border: '1px solid #007acc'
+          }}>
+            {userRole === 'instalador' ? '🔧 Menu oculto para instaladores' : '⏳ Carregando perfil...'}
+          </div>
+        )}
           
           <div className="nav-user">
             <div className="user-info">
@@ -2438,28 +2751,33 @@ const Welcome = () => {
                 <span className="avatar-icon">👤</span>
               </div>
               <div className="user-details">
-                <span className="user-name">{user?.nome || user?.email || 'Usuário'}</span>
+                <span className="user-name">{user?.nome || user?.email}</span>
                 <span className="user-role">{userRole || 'Usuário'}</span>
               </div>
             </div>
             
             <div className="user-actions">
-              <button onClick={openChangePasswordForm} className="change-password-button">
-                <span className="button-icon">🔐</span>
-                <span className="button-text">Alterar Senha</span>
-              </button>
-                              <button onClick={openLogoutConfirmation} className="logout-button">
-                  <span className="button-icon">🚪</span>
-                  <span className="button-text">Sair</span>
+              {userRole !== 'instalador' && (
+                <button onClick={openChangePasswordForm} className="change-password-button">
+                  <span className="button-icon">🔐</span>
+                  <span className="button-text">Alterar Senha</span>
                 </button>
+              )}
+              <button onClick={openLogoutConfirmation} className="logout-button">
+                <span className="button-icon">🚪</span>
+                <span className="button-text">Sair</span>
+              </button>
             </div>
           </div>
         </nav>
+        )}
         
         {/* Conteúdo principal */}
+        {!isLoading && (
         <main className="welcome-main">
           {renderContent()}
         </main>
+        )}
         
         {/* Formulário de Cliente */}
         {showClienteForm && (
@@ -2600,22 +2918,46 @@ const Welcome = () => {
                       </select>
                     </div>
                   </div>
+                  
+                  <div className="form-group">
+                    <label htmlFor="responsaveis">Responsáveis pela Obra:</label>
+                    <select
+                      id="responsaveis"
+                      multiple
+                      value={clienteFormData.id_profiles}
+                      onChange={(e) => {
+                        const selectedOptions = Array.from(e.target.selectedOptions, option => option.value)
+                        setClienteFormData({...clienteFormData, id_profiles: selectedOptions})
+                      }}
+                      className="multi-select"
+                    >
+                      {usuariosInstaladores.map((usuario) => (
+                        <option key={usuario.id} value={usuario.id}>
+                          {usuario.nome} ({usuario.role})
+                        </option>
+                      ))}
+                    </select>
+                    <small className="form-help">Pressione Ctrl (ou Cmd no Mac) para selecionar múltiplos responsáveis</small>
+                  </div>
                 </div>
 
                 {/* Seção 4: Status e Acompanhamento */}
                 <div className="form-section">
                   <h4 className="section-title">📊 Status e Acompanhamento</h4>
                   <div className="form-group">
-                    <label htmlFor="status">Status do Projeto:</label>
+                    <label htmlFor="id_status">Status do Projeto:</label>
                     <select
-                      id="status"
-                      value={clienteFormData.status}
-                      onChange={(e) => setClienteFormData({...clienteFormData, status: e.target.value})}
+                      id="id_status"
+                      value={clienteFormData.id_status || ''}
+                      onChange={(e) => setClienteFormData({...clienteFormData, id_status: e.target.value ? parseInt(e.target.value) : null})}
+                      required
                     >
-                      <option value="pendente">Pendente</option>
-                      <option value="em_andamento">Em Andamento</option>
-                      <option value="finalizado">Finalizado</option>
-                      <option value="validado">Validado</option>
+                      <option value="">Selecione um status</option>
+                      {statusClientes.map((status) => (
+                        <option key={status.id} value={status.id}>
+                          {status.status}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -2640,9 +2982,9 @@ const Welcome = () => {
                       <label className="simple-checkbox-label">
                         <input
                           type="checkbox"
-                          id="deslocamento_material"
-                          checked={clienteFormData.deslocamento_material}
-                          onChange={(e) => setClienteFormData({...clienteFormData, deslocamento_material: e.target.checked})}
+                          id="deslocamento_buscar_material"
+                          checked={clienteFormData.deslocamento_buscar_material}
+                          onChange={(e) => setClienteFormData({...clienteFormData, deslocamento_buscar_material: e.target.checked})}
                         />
                         Deslocamento para Buscar Material
                       </label>
@@ -2655,8 +2997,8 @@ const Welcome = () => {
                         <input
                           type="checkbox"
                           id="obra_civil"
-                          checked={clienteFormData.obra_civil === 'sim'}
-                          onChange={(e) => setClienteFormData({...clienteFormData, obra_civil: e.target.checked ? 'sim' : 'nao'})}
+                          checked={clienteFormData.obra_civil}
+                          onChange={(e) => setClienteFormData({...clienteFormData, obra_civil: e.target.checked})}
                         />
                         Obra Civil
                       </label>
@@ -3176,6 +3518,152 @@ const Welcome = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+        
+        {/* Modal de Visualização do Cliente */}
+        {showClienteModal && clienteModalData && (
+          <div className="form-overlay">
+            <div className="form-modal cliente-view-modal">
+              <div className="modal-header">
+                <h3>👤 Detalhes do Cliente</h3>
+                <button onClick={closeClienteModal} className="close-button">×</button>
+              </div>
+              
+              <div className="cliente-view-content">
+                {/* Seção 1: Informações Básicas */}
+                <div className="view-section">
+                  <h4 className="section-title">📋 Informações Básicas</h4>
+                  <div className="view-row">
+                    <div className="view-group">
+                      <label>Nome do Cliente:</label>
+                      <span>{clienteModalData.nome_cliente}</span>
+                    </div>
+                    <div className="view-group">
+                      <label>Telefone:</label>
+                      <span>{clienteModalData.telefone}</span>
+                    </div>
+                  </div>
+                  <div className="view-group">
+                    <label>Endereço:</label>
+                    <span>{clienteModalData.endereco}</span>
+                  </div>
+                </div>
+
+                {/* Seção 2: Datas e Cronograma */}
+                <div className="view-section">
+                  <h4 className="section-title">📅 Datas e Cronograma</h4>
+                  <div className="view-row">
+                    <div className="view-group">
+                      <label>Data de Cadastro:</label>
+                      <span>{clienteModalData.data_cadastro ? formatarData(clienteModalData.data_cadastro) : 'N/A'}</span>
+                    </div>
+                    <div className="view-group">
+                      <label>Data da Instalação:</label>
+                      <span>{clienteModalData.data_instalacao ? formatarData(clienteModalData.data_instalacao) : 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Seção 3: Especificações Técnicas */}
+                <div className="view-section">
+                  <h4 className="section-title">⚡ Especificações Técnicas</h4>
+                  <div className="view-row">
+                    <div className="view-group">
+                      <label>Tipo de Serviço:</label>
+                      <span>{clienteModalData.tipo_servico?.nome || 'N/A'}</span>
+                    </div>
+                    <div className="view-group">
+                      <label>Tipo de Padrão:</label>
+                      <span>{clienteModalData.tipo_padrao?.nome || 'N/A'}</span>
+                    </div>
+                  </div>
+                  <div className="view-row">
+                    <div className="view-group">
+                      <label>Quantidade de Módulos:</label>
+                      <span>{clienteModalData.quantidade_modulos || 'N/A'}</span>
+                    </div>
+                    <div className="view-group">
+                      <label>Equipe Responsável:</label>
+                      <span>{clienteModalData.equipe?.nome || 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Seção 4: Status e Acompanhamento */}
+                <div className="view-section">
+                  <h4 className="section-title">📊 Status e Acompanhamento</h4>
+                  <div className="view-row">
+                    <div className="view-group">
+                      <label>Status:</label>
+                      <span className={`status-badge status-${clienteModalData.status_info?.status?.toLowerCase() || 'pendente'}`}>
+                        {clienteModalData.status_info?.status === 'Pendente' ? '⏳ Pendente' : 
+                         clienteModalData.status_info?.status === 'Em andamento' ? '🔄 Em Andamento' : 
+                         clienteModalData.status_info?.status === 'Finalizado' ? '✅ Finalizado' : 
+                         clienteModalData.status_info?.status === 'Validado' ? '🔍 Validado' : 
+                         '⏳ Pendente'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Seção 5: Configurações e Opções */}
+                <div className="view-section">
+                  <h4 className="section-title">⚙️ Configurações e Opções</h4>
+                  <div className="view-row">
+                    <div className="view-group">
+                                          <label>Deslocamento para Buscar Material:</label>
+                    <span className={clienteModalData.deslocamento_buscar_material ? 'check-yes' : 'check-no'}>
+                      {clienteModalData.deslocamento_buscar_material ? '✅ Sim' : '❌ Não'}
+                    </span>
+                    </div>
+                    <div className="view-group">
+                      <label>Configuração do Inversor:</label>
+                      <span className={clienteModalData.configuracao_inversor ? 'check-yes' : 'check-no'}>
+                        {clienteModalData.configuracao_inversor ? '✅ Sim' : '❌ Não'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="view-row">
+                    <div className="view-group">
+                      <label>Obra Civil:</label>
+                      <span className={clienteModalData.obra_civil ? 'check-yes' : 'check-no'}>
+                        {clienteModalData.obra_civil ? '✅ Sim' : '❌ Não'}
+                      </span>
+                    </div>
+                    <div className="view-group">
+                      <label>Obra Cancelada:</label>
+                      <span className={clienteModalData.obra_cancelada ? 'check-yes' : 'check-no'}>
+                        {clienteModalData.obra_cancelada ? '✅ Sim' : '❌ Não'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="view-group">
+                    <label>Nota de Material:</label>
+                    <span className={clienteModalData.nota_material ? 'check-yes' : 'check-no'}>
+                      {clienteModalData.nota_material ? '✅ Sim' : '❌ Não'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Seção 6: Observações */}
+                {clienteModalData.observacoes && (
+                  <div className="view-section">
+                    <h4 className="section-title">📝 Observações</h4>
+                    <div className="view-group">
+                      <label>Observações:</label>
+                      <span className="observacoes-text">{clienteModalData.observacoes}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="form-actions">
+                <button type="button" onClick={closeClienteModal} className="cancel-button">
+                  Fechar
+                </button>
+              </div>
             </div>
           </div>
         )}
