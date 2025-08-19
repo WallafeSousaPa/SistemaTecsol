@@ -265,4 +265,4 @@ Este projeto está sob a licença MIT. Veja o arquivo LICENSE para mais detalhes
 
 ---
 
-**Desenvolvido com ❤️ usando React e Supabase**
+**Desenvolvido com ❤️ usando React e Supabase Wallafe Barros**
