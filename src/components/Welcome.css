@@ -1981,13 +1981,15 @@ th {
 }
 
 .action-btn.primary {
-  background: #007bff;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
 }
 
 .action-btn.success {
-  background: #28a745;
+  background: linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%);
   color: white;
+  box-shadow: 0 4px 15px rgba(86, 171, 47, 0.4);
 }
 
 .action-btn.info {
@@ -1997,6 +1999,19 @@ th {
 
 .action-btn:hover:not(:disabled) {
   opacity: 0.8;
+  transform: translateY(-1px);
+}
+
+.action-btn.primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
+.action-btn.success:hover:not(:disabled) {
+  background: linear-gradient(135deg, #4a9a23 0%, #97d5b8 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(86, 171, 47, 0.6);
 }
 
 .action-btn:disabled {

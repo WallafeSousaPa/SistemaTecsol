@@ -200,29 +200,21 @@ export const security = {
   
   // Verificar permissão baseada no role do usuário
   hasPermission: (userRole, permission, action) => {
-    logger.debug('hasPermission chamado:', { userRole, permission, action })
-    
     if (!userRole || !permission || !action) {
-      logger.debug('Parâmetros inválidos:', { userRole, permission, action })
       return false
     }
     
     const permissionConfig = PERMISSIONS[permission]
     if (!permissionConfig) {
-      logger.debug('Permissão não encontrada:', permission)
       return false
     }
     
     const allowedRoles = permissionConfig[action]
     if (!allowedRoles) {
-      logger.debug('Ação não encontrada:', action)
       return false
     }
     
-    const hasPermission = allowedRoles.includes(userRole)
-    logger.debug('Permissão verificada:', { allowedRoles, userRole, hasPermission })
-    
-    return hasPermission
+    return allowedRoles.includes(userRole)
   },
   
   // Verificar se o usuário pode acessar um menu específico

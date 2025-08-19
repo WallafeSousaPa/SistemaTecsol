@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { validators, security, USER_ROLES } from '../config/security'
@@ -157,6 +157,12 @@ const Welcome = () => {
   const [clienteParaExcluir, setClienteParaExcluir] = useState(null)
   const [presencasCliente, setPresencasCliente] = useState([])
   const [showHamburgerMenu, setShowHamburgerMenu] = useState(false)
+  
+  // Estados para presença modal não fechável
+  const [presencaModalNaoFechavel, setPresencaModalNaoFechavel] = useState(false)
+  
+  // Estados para cliente modal não fechável (quando finalizando obra)
+  const [clienteModalNaoFechavel, setClienteModalNaoFechavel] = useState(false)
   
   // Função para mostrar notificações
   const showNotification = (message, type = 'info') => {
@@ -823,16 +829,11 @@ const Welcome = () => {
 
   // Carregar dados iniciais
   const loadInitialData = useCallback(async () => {
-    console.log('🚀 Iniciando carregamento de dados iniciais...')
-    
     try {
       const { data: { user } } = await supabase.auth.getUser()
       
       if (user) {
-        console.log('👤 Usuário autenticado:', user.id)
-        
         // Carregar perfil do usuário
-        console.log('🔍 Carregando perfil para usuário:', user.id)
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('nome, role, status')
@@ -844,37 +845,22 @@ const Welcome = () => {
           return
         }
         
-        console.log('📋 Perfil carregado:', profile)
-        console.log('🔍 Role encontrado:', profile.role)
-        console.log('🔍 Status encontrado:', profile.status)
-        console.log('🔍 Tipo do role:', typeof profile.role)
-        console.log('🔍 Role em minúsculo:', profile.role?.toLowerCase())
-        
         // Verificar se o usuário está ativo e definir o role com case-insensitive
         if (profile && profile.status === 'ativo') {
           // Converter role para minúsculo para comparação case-insensitive
           const roleLowerCase = profile.role?.toLowerCase()
-          console.log('✅ Usuário ativo, role em minúsculo:', roleLowerCase)
           
           // Definir userRole baseado no role em minúsculo
           if (roleLowerCase === 'instalador') {
             setUserRole('instalador')
-            console.log('✅ userRole definido como: instalador')
           } else if (roleLowerCase === 'administrador') {
             setUserRole('administrador')
-            console.log('✅ userRole definido como: administrador')
           } else if (roleLowerCase === 'administrativo') {
             setUserRole('administrativo')
-            console.log('✅ userRole definido como: administrativo')
           } else {
-            console.log('⚠️ Role não reconhecido:', profile.role)
             setUserRole(null)
           }
-          
-          console.log('🔍 userRole definido:', roleLowerCase)
         } else {
-          console.log('❌ Usuário inativo ou perfil não encontrado')
-          console.log('🔍 Status do perfil:', profile?.status)
           // Logout automático para usuários inativos
           await supabase.auth.signOut()
           navigate('/login')
@@ -882,13 +868,10 @@ const Welcome = () => {
         }
         
         setUser({...user, nome: profile.nome})
-      } else {
-        console.log('❌ Nenhum usuário autenticado encontrado')
       }
     } catch (error) {
       console.error('❌ Erro ao carregar dados iniciais:', error)
     } finally {
-      console.log('🏁 Finalizando carregamento de dados iniciais, isLoading = false')
       setIsLoading(false)
     }
   }, [navigate])
@@ -903,13 +886,12 @@ const Welcome = () => {
     if (userRole && !isLoading) {
       const loadBasicData = async () => {
         try {
-          await Promise.all([
-            loadEquipes(),
-            loadTiposServico(),
-            loadTiposPadrao(),
-            loadStatusClientes(),
-            loadUsuariosInstaladores()
-          ])
+          // Carregar dados sequencialmente para evitar sobrecarga
+          await loadEquipes()
+          await loadTiposServico()
+          await loadTiposPadrao()
+          await loadStatusClientes()
+          await loadUsuariosInstaladores()
         } catch (error) {
           console.error('Erro ao carregar dados básicos:', error)
         }
@@ -976,6 +958,7 @@ const Welcome = () => {
         .order('id')
       
       if (error) throw error
+      
       setStatusClientes(data || [])
     } catch (error) {
       console.error('Erro ao carregar status dos clientes:', error)
@@ -1005,9 +988,6 @@ const Welcome = () => {
   // Carregar responsáveis de um cliente
   const loadResponsaveisCliente = async (clienteId) => {
     try {
-      console.log('🔍 Carregando responsáveis para cliente:', clienteId)
-      console.log('🔍 Tipo do clienteId:', typeof clienteId)
-      
       const { data, error } = await supabase
         .from('clientes_usuarios')
         .select('profile_id')
@@ -1016,180 +996,140 @@ const Welcome = () => {
       
       if (error) {
         console.error('❌ Erro na query de responsáveis:', error)
-        console.error('❌ Detalhes do erro:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        })
         throw error
       }
       
-      console.log('📋 Responsáveis encontrados (raw data):', data)
-      console.log('📋 Tipo dos dados:', typeof data)
-      console.log('📋 É array?', Array.isArray(data))
-      
       // Retornar array de IDs dos responsáveis
-      const responsaveisIds = data ? data.map(item => {
-        console.log('🔍 Item do responsável:', item)
-        console.log('🔍 profile_id do item:', item.profile_id)
-        return item.profile_id
-      }) : []
-      
-      console.log('🆔 IDs dos responsáveis mapeados:', responsaveisIds)
-      console.log('🆔 Tipo do array retornado:', typeof responsaveisIds)
-      console.log('🆔 É array?', Array.isArray(responsaveisIds))
+      const responsaveisIds = data ? data.map(item => item.profile_id) : []
       
       return responsaveisIds
     } catch (error) {
       console.error('❌ Erro ao carregar responsáveis do cliente:', error)
-      console.error('❌ Stack trace:', error.stack)
       return []
     }
   }
   
-  // Carregar clientes
+  // Debounce para evitar múltiplas chamadas simultâneas
+  const [loadClientesTimeout, setLoadClientesTimeout] = useState(null)
+
+  // Carregar clientes com debounce
   const loadClientes = useCallback(async () => {
+    // Cancelar timeout anterior se existir
+    if (loadClientesTimeout) {
+      clearTimeout(loadClientesTimeout)
+    }
+
+    // Criar novo timeout
+    const timeout = setTimeout(async () => {
+      try {
+        let query = supabase
+          .from('clientes')
+          .select(`
+            *,
+            tipo_servico:tipo_servico(nome),
+            tipo_padrao:tipo_padrao(nome),
+            equipe:equipes(nome),
+            status_info:status_clientes(status)
+          `)
+          .order('created_at', { ascending: false })
+
+        // Se for instalador, filtrar apenas clientes associados
+        if (userRole === 'instalador') {
+          query = query.eq('usuario_instalador_id', user.id)
+        }
+
+        const { data, error } = await query
+
+        if (error) throw error
+
+        setClientes(data || [])
+      } catch (error) {
+        console.error('Erro ao carregar clientes:', error)
+      }
+    }, 100) // Delay de 100ms
+
+    setLoadClientesTimeout(timeout)
+  }, [userRole, user?.id, loadClientesTimeout])
+
+  // Função de teste sem debounce para debug
+  const loadClientesTeste = useCallback(async () => {
     try {
-      console.log('📋 Iniciando loadClientes...')
-      console.log('  - userRole:', userRole)
-      console.log('  - user.id:', user?.id)
-      
       let query = supabase
         .from('clientes')
-        .select(`
-          *,
-          tipo_servico:tipo_servico_id(id, nome),
-          tipo_padrao:tipo_padrao_id(id, nome),
-          responsaveis:clientes_usuarios!cliente_id(profile:profile_id(id, nome, role)),
-          equipe:equipe_id(nome),
-          status_info:id_status(id, status)
-        `)
-        .order('data_cadastro', { ascending: false })
-      
-      // Se for instalador, filtrar apenas clientes associados a ele e com status específicos
-      if (userRole === 'instalador' && user?.id) {
-        console.log('🔍 Carregando clientes para instalador:', user.id)
-        
-        // Primeiro buscar os IDs dos clientes associados ao usuário
-        const { data: clientesUsuarios, error: errorRelacao } = await supabase
-          .from('clientes_usuarios')
-          .select('cliente_id')
-          .eq('profile_id', user.id)
-          .eq('ativo', true)
-        
-        if (errorRelacao) {
-          console.error('❌ Erro ao buscar relação cliente-usuário:', errorRelacao)
-          throw errorRelacao
-        }
-        
-        console.log('📋 Clientes associados encontrados:', clientesUsuarios)
-        
-        if (clientesUsuarios && clientesUsuarios.length > 0) {
-          const clienteIds = clientesUsuarios.map(cu => cu.cliente_id)
-          console.log('🆔 IDs dos clientes:', clienteIds)
-          
-          // Filtrar por clientes associados E por status específicos (Pendente ou Em andamento)
-          // Primeiro buscar os IDs dos status que queremos
-          const { data: statusIds, error: statusError } = await supabase
-            .from('status_clientes')
-            .select('id')
-            .in('status', ['Pendente', 'Em andamento'])
-            .eq('ativo', true)
-          
-          if (statusError) {
-            console.error('❌ Erro ao buscar IDs dos status:', statusError)
-            throw statusError
-          }
-          
-          if (statusIds && statusIds.length > 0) {
-            const statusIdsArray = statusIds.map(s => s.id)
-            console.log('🆔 IDs dos status válidos:', statusIdsArray)
-            
-            query = query
-              .in('id', clienteIds)
-              .in('id_status', statusIdsArray)
-          } else {
-            console.log('⚠️ Nenhum status válido encontrado')
-            setClientes([])
-            return
-          }
-          
-          console.log('🔍 Query filtrada para instalador criada')
-        } else {
-          // Se não há clientes associados, retornar array vazio
-          console.log('⚠️ Nenhum cliente associado encontrado para o instalador')
-          setClientes([])
-          return
-        }
-      } else {
-        console.log('🔍 Carregando clientes para usuário não-instalador')
-      }
-      
+        .select('*')
+        .order('created_at', { ascending: false })
+
       const { data, error } = await query
-      
-      if (error) {
-        console.error('❌ Erro na query de clientes:', error)
-        throw error
-      }
-      
-      console.log('✅ Clientes carregados com sucesso:', data?.length || 0)
-      console.log('📋 Dados dos clientes:', data)
+
+      if (error) throw error
+
       setClientes(data || [])
     } catch (error) {
-      console.error('❌ Erro ao carregar clientes:', error)
-      setClientes([])
-    }
-  }, [userRole, user?.id])
-  
-  // Carregar presenças
-  const loadPresencas = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('presenca')
-                        .select(`
-                  *,
-                  cliente:cliente_id(nome_cliente),
-                  equipe:equipe_id(nome),
-                  veiculo:veiculo_id(veiculo, placa)
-                `)
-        .order('data_presenca', { ascending: false })
-      
-      if (error) throw error
-      
-      // Carregar colaboradores para cada presença
-      if (data && data.length > 0) {
-        const presencasComColaboradores = await Promise.all(
-          data.map(async (presenca) => {
-            const { data: colaboradoresData, error: colaboradoresError } = await supabase
-              .from('presenca_colaboradores')
-              .select(`
-                colaborador_id,
-                colaborador:colaborador_id(id, nome, cargo)
-              `)
-              .eq('presenca_id', presenca.id)
-            
-            if (colaboradoresError) {
-              console.error('Erro ao carregar colaboradores da presença:', colaboradoresError)
-              return { ...presenca, colaboradores: [] }
-            }
-            
-            return {
-              ...presenca,
-              colaboradores: colaboradoresData?.map(c => c.colaborador_id) || []
-            }
-          })
-        )
-        
-        setPresencas(presencasComColaboradores)
-      } else {
-        setPresencas([])
-      }
-    } catch (error) {
-      console.error('Erro ao carregar presenças:', error)
-      setPresencas([])
+      console.error('Erro ao carregar clientes:', error)
     }
   }, [])
+  
+  // Debounce para presenças
+  const [loadPresencasTimeout, setLoadPresencasTimeout] = useState(null)
+
+  // Carregar presenças com debounce
+  const loadPresencas = useCallback(async () => {
+    // Cancelar timeout anterior se existir
+    if (loadPresencasTimeout) {
+      clearTimeout(loadPresencasTimeout)
+    }
+
+    // Criar novo timeout
+    const timeout = setTimeout(async () => {
+      try {
+        const { data, error } = await supabase
+          .from('presenca')
+          .select(`
+            *,
+            cliente:cliente_id(nome_cliente),
+            equipe:equipe_id(nome),
+            veiculo:veiculo_id(veiculo, placa)
+          `)
+          .order('data_presenca', { ascending: false })
+        
+        if (error) throw error
+        
+        // Carregar colaboradores para cada presença
+        if (data && data.length > 0) {
+          const presencasComColaboradores = await Promise.all(
+            data.map(async (presenca) => {
+              const { data: colaboradoresData, error: colaboradoresError } = await supabase
+                .from('presenca_colaboradores')
+                .select(`
+                  colaborador_id,
+                  colaborador:colaborador_id(id, nome, cargo)
+                `)
+                .eq('presenca_id', presenca.id)
+              
+              if (colaboradoresError) {
+                console.error('Erro ao carregar colaboradores da presença:', colaboradoresError)
+                return { ...presenca, colaboradores: [] }
+              }
+              
+              return {
+                ...presenca,
+                colaboradores: colaboradoresData?.map(c => c.colaborador_id) || []
+              }
+            })
+          )
+          
+          setPresencas(presencasComColaboradores)
+        } else {
+          setPresencas([])
+        }
+      } catch (error) {
+        console.error('Erro ao carregar presenças:', error)
+        setPresencas([])
+      }
+    }, 100) // Delay de 100ms
+
+    setLoadPresencasTimeout(timeout)
+  }, [loadPresencasTimeout])
 
   // Carregar colaboradores
   const loadColaboradores = useCallback(async () => {
@@ -1301,7 +1241,7 @@ const Welcome = () => {
   }, [clientes, filtrosCliente, userRole])
   
   // Clientes filtrados
-  const clientesFiltrados = aplicarFiltrosClientes()
+  const clientesFiltrados = useMemo(() => aplicarFiltrosClientes(), [aplicarFiltrosClientes])
   
   // Abrir formulário de novo cliente
   const openNewClienteForm = () => {
@@ -1330,6 +1270,12 @@ const Welcome = () => {
   
   // Fechar formulário de cliente
   const closeClienteForm = () => {
+    // Se o modal não pode ser fechado (finalização obrigatória), não permitir fechar
+    if (clienteModalNaoFechavel) {
+      showNotification('Você deve finalizar a obra antes de fechar este modal.', 'warning')
+      return
+    }
+    
     setShowClienteForm(false)
     setEditingCliente(null)
     setClienteFormData({
@@ -1377,6 +1323,7 @@ const Welcome = () => {
       
       if (editingCliente) {
         // Atualizar cliente existente
+        
         const { error } = await supabase
           .from('clientes')
           .update(clienteData)
@@ -1401,13 +1348,12 @@ const Welcome = () => {
       
       // Salvar responsáveis na tabela clientes_usuarios
       if (clienteId && id_profiles && id_profiles.length > 0) {
-        console.log('🔧 Salvando responsáveis para cliente:', clienteId)
-        console.log('👥 IDs dos responsáveis:', id_profiles)
+
         
         try {
           // Para edição, usar UPSERT para evitar violação de constraint única
           if (editingCliente) {
-            console.log('🔄 Atualizando relações existentes para cliente:', clienteId)
+
             
             // Primeiro, desativar todas as relações existentes
             const { error: deactivateError } = await supabase
@@ -1419,7 +1365,7 @@ const Welcome = () => {
               console.error('❌ Erro ao desativar relações existentes:', deactivateError)
               throw deactivateError
             }
-            console.log('✅ Relações existentes desativadas com sucesso')
+
           }
           
           // Preparar dados para inserção usando UPSERT
@@ -1430,12 +1376,7 @@ const Welcome = () => {
             ativo: true
           }))
           
-          console.log('🔍 Verificando dados antes da inserção:')
-          console.log('  - clienteId (tipo):', typeof clienteId, clienteId)
-          console.log('  - profileId (tipo):', typeof id_profiles[0], id_profiles[0])
-          console.log('  - responsaveisData:', responsaveisData)
-          
-          console.log('📝 Dados dos responsáveis a serem inseridos:', responsaveisData)
+
           
           // Usar UPSERT para inserir/atualizar relações
           // Se houver conflito (mesmo cliente_id, profile_id, tipo_relacao), atualizar
@@ -1457,8 +1398,7 @@ const Welcome = () => {
             })
             showNotification('Cliente salvo, mas houve erro ao salvar responsáveis: ' + responsaveisError.message, 'warning')
           } else {
-            console.log('✅ Responsáveis salvos com sucesso')
-            console.log('✅ Dados retornados da inserção:', insertData)
+
             showNotification('Cliente e responsáveis salvos com sucesso!', 'success')
           }
         } catch (error) {
@@ -1467,9 +1407,7 @@ const Welcome = () => {
           showNotification('Cliente salvo, mas houve erro ao salvar responsáveis: ' + error.message, 'warning')
         }
       } else {
-        console.log('⚠️ Não há responsáveis para salvar ou dados inválidos')
-        console.log('  - clienteId:', clienteId)
-        console.log('  - id_profiles:', id_profiles)
+
       }
       
       closeClienteForm()
@@ -1486,8 +1424,11 @@ const Welcome = () => {
       // Carregar responsáveis do cliente
       const responsaveisIds = await loadResponsaveisCliente(cliente.id)
       
+      // Garantir que o modal pode ser fechado para edição normal
+      setClienteModalNaoFechavel(false)
+      
       setEditingCliente(cliente)
-      setClienteFormData({
+      const novoFormData = {
         nome_cliente: cliente.nome_cliente || '',
         endereco: cliente.endereco || '',
         telefone: cliente.telefone || '',
@@ -1505,7 +1446,10 @@ const Welcome = () => {
         nota_material: cliente.nota_material || false,
         observacoes: cliente.observacoes || '',
         id_status: cliente.id_status || 1 // Status padrão: Pendente (ID 1)
-      })
+      }
+      
+      setClienteFormData(novoFormData)
+      
       setShowClienteForm(true)
     } catch (error) {
       console.error('Erro ao carregar responsáveis do cliente:', error)
@@ -1621,6 +1565,12 @@ const Welcome = () => {
   
   // Fechar formulário de presença
   const closePresencaForm = () => {
+    // Se o modal não pode ser fechado (presença obrigatória), não permitir fechar
+    if (presencaModalNaoFechavel) {
+      showNotification('Você deve preencher a lista de presença antes de fechar este modal.', 'warning')
+      return
+    }
+    
     setShowPresencaForm(false)
     setEditingPresenca(null)
     setPresencaFormData({
@@ -1638,6 +1588,13 @@ const Welcome = () => {
   // Salvar presença
   const handlePresencaFormSubmit = async (e) => {
     e.preventDefault()
+    
+    // Prevenir múltiplos cliques
+    const submitButton = e.target.querySelector('button[type="submit"]')
+    if (submitButton) {
+      submitButton.disabled = true
+      submitButton.textContent = 'Salvando...'
+    }
     
     // Validação: cliente é obrigatório
     if (!presencaFormData.cliente_id) {
@@ -1728,18 +1685,57 @@ const Welcome = () => {
             throw colaboradoresError
           }
           
-          console.log('✅ Colaboradores salvos com sucesso para presença:', presencaId)
+  
         } catch (error) {
           console.error('Erro ao salvar colaboradores:', error)
           showNotification('Presença salva, mas houve erro ao salvar colaboradores: ' + error.message, 'warning')
         }
       }
       
-      closePresencaForm()
+      // Fechar o modal automaticamente após salvar com sucesso
+      if (presencaModalNaoFechavel) {
+        // Se era obrigatório, permitir fechar e fechar automaticamente
+        setPresencaModalNaoFechavel(false)
+        showNotification('Lista de presença salva com sucesso! Modal será fechado automaticamente.', 'success')
+        
+        // Fechar o modal automaticamente após 2 segundos para o usuário ver a mensagem
+        setTimeout(() => {
+          // Fechar modal diretamente sem usar closePresencaForm
+          setShowPresencaForm(false)
+          setEditingPresenca(null)
+          setPresencaFormData({
+            data_presenca: '',
+            data_cadastro_preenchido: '',
+            cliente_id: '',
+            equipe_id: '',
+            veiculo_id: '',
+            km_inicial: '',
+            observacoes: '',
+            colaboradores: []
+          })
+        }, 2000)
+      } else {
+        // Se não era obrigatório, fechar normalmente
+        closePresencaForm()
+      }
+      
+      // Reabilitar botão após sucesso
+      const submitButton = e.target.querySelector('button[type="submit"]')
+      if (submitButton) {
+        submitButton.disabled = false
+        submitButton.textContent = editingPresenca ? 'Atualizar' : 'Cadastrar' + ' Presença'
+      }
       loadPresencas()
     } catch (error) {
       console.error('Erro ao salvar presença:', error)
       showNotification('Erro ao salvar presença: ' + error.message, 'error')
+      
+      // Reabilitar botão em caso de erro
+      const submitButton = e.target.querySelector('button[type="submit"]')
+      if (submitButton) {
+        submitButton.disabled = false
+        submitButton.textContent = editingPresenca ? 'Atualizar' : 'Cadastrar' + ' Presença'
+      }
     }
   }
   
@@ -2078,6 +2074,28 @@ const Welcome = () => {
                       </td>
                       <td>
                         <div className="action-buttons">
+                          {/* Botão Iniciar Obra - apenas para clientes Pendentes */}
+                          {userRole === 'instalador' && cliente.status_info?.status === 'Pendente' && (
+                            <button 
+                              onClick={() => handleIniciarObra(cliente)} 
+                              className="action-btn small primary"
+                              title="Iniciar obra"
+                            >
+                              🚀 Iniciar Obra
+                            </button>
+                          )}
+                          
+                          {/* Botão Finalizar - apenas para clientes Em andamento */}
+                          {userRole === 'instalador' && cliente.status_info?.status === 'Em andamento' && (
+                            <button 
+                              onClick={() => handleFinalizarObra(cliente)} 
+                              className="action-btn small success"
+                              title="Finalizar obra"
+                            >
+                              ✅ Finalizar
+                            </button>
+                          )}
+                          
                           {security.hasPermission(userRole, 'CLIENT_MANAGEMENT', 'EDIT') && (
                             <button 
                               onClick={() => handleEditCliente(cliente)} 
@@ -2700,29 +2718,62 @@ const Welcome = () => {
   // Carregar dados quando o componente montar
   useEffect(() => {
     if (userRole) {
-      loadClientes()
+      // Carregar clientes imediatamente
+      const carregarClientes = async () => {
+        try {
+          let query = supabase
+            .from('clientes')
+            .select(`
+              *,
+              tipo_servico:tipo_servico(nome),
+              tipo_padrao:tipo_padrao(nome),
+              equipe:equipes(nome),
+              status_info:status_clientes(status)
+            `)
+            .order('created_at', { ascending: false })
+
+          const { data, error } = await query
+          if (error) throw error
+          setClientes(data || [])
+        } catch (error) {
+          console.error('Erro ao carregar clientes:', error)
+        }
+      }
       
-      // Instaladores não carregam dados desnecessários
-      if (userRole !== 'instalador') {
-        loadPresencas()
-        loadColaboradores()
-        loadUsuarios()
-        loadCargos()
-        loadVeiculos()
+      carregarClientes()
+      
+      // Carregar dados necessários para todos os usuários
+      setTimeout(() => {
+        if (userRole !== 'instalador') {
+          // Administradores e administrativos carregam tudo
+          loadPresencas()
+          loadColaboradores()
+          loadUsuarios()
+          loadCargos()
+          loadVeiculos()
+        } else {
+          // Instaladores carregam apenas o necessário para presença
+          loadColaboradores()
+          loadVeiculos()
+        }
+      }, 100)
+    }
+
+    // Cleanup: limpar timeouts quando componente desmontar
+    return () => {
+      if (loadClientesTimeout) {
+        clearTimeout(loadClientesTimeout)
+      }
+      if (loadPresencasTimeout) {
+        clearTimeout(loadPresencasTimeout)
       }
     }
-  }, [userRole, loadClientes, loadPresencas, loadColaboradores, loadUsuarios, loadCargos, loadVeiculos])
+  }, [userRole, loadClientesTimeout, loadPresencasTimeout])
   
   // Renderizar conteúdo baseado na view atual
   const renderContent = () => {
-    console.log('🎨 Renderizando conteúdo...')
-    console.log('  - userRole:', userRole)
-    console.log('  - currentView:', currentView)
-    console.log('  - clientes.length:', clientes.length)
-    
     // Se for instalador, mostrar apenas clientes
     if (userRole === 'instalador') {
-      console.log('🎯 Renderizando conteúdo para instalador')
       return (
         <div className="menu-content">
           <div className="menu-header">
@@ -2749,7 +2800,6 @@ const Welcome = () => {
       )
     }
     
-    console.log('🎨 Renderizando conteúdo para usuário não-instalador')
     switch (currentView) {
       case 'clientes':
         return renderClientes()
@@ -2769,6 +2819,220 @@ const Welcome = () => {
         return renderTiposPadrao()
       default:
         return renderDashboard()
+    }
+  }
+  
+  // Função para iniciar obra (mudar status para "Em andamento" e abrir presença)
+  const handleIniciarObra = async (cliente) => {
+    try {
+      // Buscar o ID do status "Em andamento"
+      const { data: statusData, error: statusError } = await supabase
+        .from('status_clientes')
+        .select('id')
+        .eq('status', 'Em andamento')
+        .eq('ativo', true)
+        .single()
+      
+      if (statusError) {
+        console.error('❌ Erro ao buscar status "Em andamento":', statusError)
+        showNotification('Erro ao buscar status do cliente.', 'error')
+        return
+      }
+      
+      if (!statusData) {
+        showNotification('Status "Em andamento" não encontrado.', 'error')
+        return
+      }
+      
+      // Atualizar o status do cliente para "Em andamento"
+      const { error: updateError } = await supabase
+        .from('clientes')
+        .update({ id_status: statusData.id })
+        .eq('id', cliente.id)
+      
+      if (updateError) {
+        console.error('❌ Erro ao atualizar status do cliente:', updateError)
+        showNotification('Erro ao atualizar status do cliente.', 'error')
+        return
+      }
+      
+      // Abrir formulário de presença com cliente pré-preenchido
+      setPresencaFormData({
+        data_presenca: new Date().toISOString().split('T')[0],
+        data_cadastro_preenchido: new Date().toISOString().split('T')[0],
+        cliente_id: cliente.id,
+        equipe_id: '',
+        veiculo_id: '',
+        km_inicial: '',
+        observacoes: '',
+        colaboradores: []
+      })
+      
+      // Marcar que o modal não pode ser fechado até completar a presença
+      setPresencaModalNaoFechavel(true)
+      
+      // Abrir modal de presença
+      setShowPresencaForm(true)
+      
+      // Recarregar clientes para atualizar o status na interface
+      const recarregarClientes = async () => {
+        try {
+          let query = supabase
+            .from('clientes')
+            .select(`
+              *,
+              tipo_servico:tipo_servico(nome),
+              tipo_padrao:tipo_padrao(nome),
+              equipe:equipes(nome),
+              status_info:status_clientes(status)
+            `)
+            .order('created_at', { ascending: false })
+
+          const { data, error } = await query
+          if (error) throw error
+          setClientes(data || [])
+        } catch (error) {
+          console.error('Erro ao recarregar clientes:', error)
+        }
+      }
+      
+      recarregarClientes()
+      
+      showNotification('Obra iniciada! Preencha a lista de presença.', 'success')
+    } catch (error) {
+      console.error('❌ Erro ao iniciar obra:', error)
+      showNotification('Erro ao iniciar obra: ' + error.message, 'error')
+    }
+  }
+  
+  // Função para finalizar obra (abrir modal de cliente para edição)
+  const handleFinalizarObra = (cliente) => {
+    // Abrir modal de cliente para edição dos campos específicos
+    setClienteFormData({
+      nome_cliente: cliente.nome_cliente || '',
+      endereco: cliente.endereco || '',
+      telefone: cliente.telefone || '',
+      data_instalacao: cliente.data_instalacao || '',
+      tipo_servico_id: cliente.tipo_servico_id || '',
+      tipo_padrao_id: cliente.tipo_padrao_id || '',
+      id_profiles: [],
+      equipe_id: cliente.equipe_id || '',
+      data_cadastro: cliente.data_cadastro || '',
+      obra_cancelada: cliente.obra_cancelada || false,
+      nota_material: cliente.nota_material || false,
+      quantidade_modulos: cliente.quantidade_modulos || '',
+      configuracao_inversor: cliente.configuracao_inversor || false,
+      deslocamento_buscar_material: cliente.deslocamento_buscar_material || false,
+      obra_civil: cliente.obra_civil || false,
+      observacoes: cliente.observacoes || '',
+      id_status: cliente.id_status || 1
+    })
+    
+    // Carregar responsáveis do cliente
+    loadResponsaveisCliente(cliente.id).then(responsaveisIds => {
+      setClienteFormData(prev => ({
+        ...prev,
+        id_profiles: responsaveisIds
+      }))
+    })
+    
+    // Marcar que este modal é para finalização (não é o modal de presença obrigatório)
+    setPresencaModalNaoFechavel(false)
+    
+    // Marcar que este modal de cliente não pode ser fechado até finalizar
+    setClienteModalNaoFechavel(true)
+    
+    setEditingCliente(cliente)
+    setShowClienteForm(true)
+  }
+  
+  // Função para salvar cliente após finalização (mudar status para "Finalizado")
+  const handleFinalizarClienteSubmit = async (e) => {
+    e.preventDefault()
+    
+    try {
+      // Buscar o ID do status "Finalizado"
+      const { data: statusData, error: statusError } = await supabase
+        .from('status_clientes')
+        .select('id')
+        .eq('status', 'Finalizado')
+        .eq('ativo', true)
+        .single()
+      
+      if (statusError) {
+        console.error('❌ Erro ao buscar status "Finalizado":', statusError)
+        showNotification('Erro ao buscar status do cliente.', 'error')
+        return
+      }
+      
+      if (!statusData) {
+        showNotification('Status "Finalizado" não encontrado.', 'error')
+        return
+      }
+      
+      // Destructuring para separar id_profiles dos dados do cliente
+      const { id_profiles, ...dadosCliente } = clienteFormData
+      
+      // Atualizar o cliente com os dados do formulário e status "Finalizado"
+      const clienteData = {
+        ...dadosCliente,
+        id_status: statusData.id
+      }
+      
+      const { error: updateError } = await supabase
+        .from('clientes')
+        .update(clienteData)
+        .eq('id', editingCliente.id)
+      
+      if (updateError) {
+        console.error('❌ Erro ao atualizar cliente:', updateError)
+        showNotification('Erro ao atualizar cliente: ' + updateError.message, 'error')
+        return
+      }
+      
+      // Salvar responsáveis na tabela clientes_usuarios
+      if (clienteData.id_profiles && clienteData.id_profiles.length > 0) {
+        // Desativar todas as relações existentes
+        const { error: deactivateError } = await supabase
+          .from('clientes_usuarios')
+          .update({ ativo: false })
+          .eq('cliente_id', editingCliente.id)
+        
+        if (deactivateError) {
+          console.error('❌ Erro ao desativar relações existentes:', deactivateError)
+          throw deactivateError
+        }
+        
+        // Preparar dados para inserção
+        const responsaveisData = clienteData.id_profiles.map(profileId => ({
+          cliente_id: editingCliente.id,
+          profile_id: profileId,
+          tipo_relacao: 'instalador',
+          ativo: true
+        }))
+        
+        // Inserir novas relações
+        const { error: responsaveisError } = await supabase
+          .from('clientes_usuarios')
+          .upsert(responsaveisData, {
+            onConflict: 'cliente_id,profile_id,tipo_relacao',
+            ignoreDuplicates: false
+          })
+        
+        if (responsaveisError) {
+          console.error('❌ Erro ao salvar responsáveis:', responsaveisError)
+          throw responsaveisError
+        }
+      }
+      
+      showNotification('Cliente finalizado com sucesso!', 'success')
+      setShowClienteForm(false)
+      setEditingCliente(null)
+      setClienteModalNaoFechavel(false) // Permitir fechar o modal após finalizar
+      loadClientes()
+    } catch (error) {
+      console.error('❌ Erro ao finalizar cliente:', error)
+      showNotification('Erro ao finalizar cliente: ' + error.message, 'error')
     }
   }
   
@@ -2863,9 +3127,7 @@ const Welcome = () => {
           
 
           
-                  {/* Menu de navegação - apenas para não instaladores */}
-                {/* Menu de navegação - apenas para não instaladores */}
-        {console.log('🔍 Renderizando menu - userRole:', userRole, 'userRole !== "instalador":', userRole !== 'instalador')}
+                          {/* Menu de navegação - apenas para não instaladores */}
         {userRole && userRole !== 'instalador' ? (
           <div className="nav-menu">
             <button 
@@ -3018,11 +3280,19 @@ const Welcome = () => {
           <div className="form-overlay">
             <div className="form-modal">
               <div className="modal-header">
-                <h3>{editingCliente ? 'Editar Cliente' : 'Cadastrar Novo Cliente'}</h3>
-                <button onClick={closeClienteForm} className="close-button">×</button>
+                <h3>
+                  {editingCliente && clienteModalNaoFechavel ? 'Finalizar Obra - Editar Cliente' : 
+                   editingCliente ? 'Editar Cliente' : 'Cadastrar Novo Cliente'}
+                </h3>
+                {/* Botão de fechar só aparece se o modal não for obrigatório */}
+                {!clienteModalNaoFechavel && (
+                  <button onClick={closeClienteForm} className="close-button" title="Fechar">×</button>
+                )}
               </div>
               
-              <form onSubmit={handleClienteFormSubmit} className="cliente-form">
+              <form onSubmit={
+                editingCliente && clienteModalNaoFechavel ? handleFinalizarClienteSubmit : handleClienteFormSubmit
+              } className="cliente-form">
                 {/* Seção 1: Informações Básicas do Cliente */}
                 <div className="form-section">
                   <h4 className="section-title">📋 Informações Básicas</h4>
@@ -3036,6 +3306,7 @@ const Welcome = () => {
                         onChange={(e) => setClienteFormData({...clienteFormData, nome_cliente: e.target.value})}
                         required
                         placeholder="Nome completo do cliente"
+                        disabled={clienteModalNaoFechavel} // Desabilitar para finalização
                       />
                     </div>
                     
@@ -3048,20 +3319,22 @@ const Welcome = () => {
                         onChange={(e) => setClienteFormData({...clienteFormData, telefone: e.target.value})}
                         required
                         placeholder="(11) 99999-9999"
+                        disabled={clienteModalNaoFechavel} // Desabilitar para finalização
                       />
                     </div>
                   </div>
                   
                   <div className="form-group">
                     <label htmlFor="endereco">Endereço: *</label>
-                    <input
-                      type="text"
-                      id="endereco"
-                      value={clienteFormData.endereco}
-                      onChange={(e) => setClienteFormData({...clienteFormData, endereco: e.target.value})}
-                      required
-                      placeholder="Endereço completo da instalação"
-                    />
+                                          <input
+                        type="text"
+                        id="endereco"
+                        value={clienteFormData.endereco}
+                        onChange={(e) => setClienteFormData({...clienteFormData, endereco: e.target.value})}
+                        required
+                        placeholder="Endereço completo da instalação"
+                        disabled={clienteModalNaoFechavel} // Desabilitar para finalização
+                      />
                   </div>
                 </div>
 
@@ -3076,6 +3349,7 @@ const Welcome = () => {
                         id="data_cadastro"
                         value={clienteFormData.data_cadastro}
                         onChange={(e) => setClienteFormData({...clienteFormData, data_cadastro: e.target.value})}
+                        disabled={clienteModalNaoFechavel} // Desabilitar para finalização
                       />
                     </div>
                     
@@ -3144,6 +3418,7 @@ const Welcome = () => {
                         id="equipe"
                         value={clienteFormData.equipe_id}
                         onChange={(e) => setClienteFormData({...clienteFormData, equipe_id: e.target.value})}
+                        disabled={clienteModalNaoFechavel} // Desabilitar para finalização
                       >
                         <option value="">Selecione uma equipe</option>
                         {equipes.map((equipe) => (
@@ -3164,6 +3439,7 @@ const Welcome = () => {
                         setClienteFormData({...clienteFormData, id_profiles: selectedOptions})
                       }}
                       className="multi-select"
+                      disabled={clienteModalNaoFechavel} // Desabilitar para finalização
                     >
                       {usuariosInstaladores.map((usuario) => (
                         <option key={usuario.id} value={usuario.id}>
@@ -3185,6 +3461,7 @@ const Welcome = () => {
                       value={clienteFormData.id_status || ''}
                       onChange={(e) => setClienteFormData({...clienteFormData, id_status: e.target.value ? parseInt(e.target.value) : null})}
                       required
+                      disabled={clienteModalNaoFechavel} // Desabilitar para finalização
                     >
                       <option value="">Selecione um status</option>
                       {statusClientes.map((status) => (
@@ -3282,11 +3559,15 @@ const Welcome = () => {
                 </div>
                 
                 <div className="form-actions">
-                  <button type="button" onClick={closeClienteForm} className="cancel-button">
-                    Cancelar
-                  </button>
+                  {/* Botão cancelar só aparece se o modal não for obrigatório */}
+                  {!clienteModalNaoFechavel && (
+                    <button type="button" onClick={closeClienteForm} className="cancel-button">
+                      Cancelar
+                    </button>
+                  )}
                   <button type="submit" className="submit-button">
-                    {editingCliente ? 'Atualizar' : 'Cadastrar'} Cliente
+                    {editingCliente && clienteModalNaoFechavel ? 'Finalizar Obra' : 
+                     editingCliente ? 'Atualizar' : 'Cadastrar'} Cliente
                   </button>
                 </div>
               </form>
@@ -3669,7 +3950,14 @@ const Welcome = () => {
             <div className="form-modal">
               <div className="modal-header">
                 <h3>{editingPresenca ? 'Editar Presença' : 'Nova Lista de Presença'}</h3>
-                <button onClick={closePresencaForm} className="close-button">×</button>
+                {/* Debug temporário */}
+                <div style={{fontSize: '12px', color: 'red'}}>
+                  presencaModalNaoFechavel: {presencaModalNaoFechavel ? 'true' : 'false'}
+                </div>
+                {/* Botão de fechar só aparece se o modal não for obrigatório */}
+                {!presencaModalNaoFechavel && (
+                  <button onClick={closePresencaForm} className="close-button">×</button>
+                )}
               </div>
               
               <form onSubmit={handlePresencaFormSubmit} className="presenca-form">
@@ -3705,6 +3993,7 @@ const Welcome = () => {
                       value={presencaFormData.cliente_id}
                       onChange={(e) => setPresencaFormData({...presencaFormData, cliente_id: e.target.value})}
                       required
+                      disabled={presencaModalNaoFechavel} // Desabilitar quando modal não for fechável
                     >
                       <option value="">Selecione um cliente</option>
                       {clientes.map(cliente => (
@@ -3883,9 +4172,16 @@ const Welcome = () => {
                 </div>
                 
                 <div className="form-actions">
-                  <button type="button" onClick={closePresencaForm} className="cancel-button">
-                    Cancelar
-                  </button>
+                  {/* Debug temporário */}
+                  <div style={{fontSize: '12px', color: 'red', marginBottom: '10px'}}>
+                    presencaModalNaoFechavel: {presencaModalNaoFechavel ? 'true' : 'false'}
+                  </div>
+                  {/* Botão Cancelar só aparece se o modal não for obrigatório */}
+                  {!presencaModalNaoFechavel && (
+                    <button type="button" onClick={closePresencaForm} className="cancel-button">
+                      Cancelar
+                    </button>
+                  )}
                   <button type="submit" className="submit-button">
                     {editingPresenca ? 'Atualizar' : 'Cadastrar'} Presença
                   </button>

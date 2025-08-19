@@ -1,56 +1,66 @@
--- Script para verificar os status existentes na tabela clientes
--- Execute este script para entender quais status estão sendo usados
+-- Script simples para verificar se há dados na tabela status_clientes
+-- Execute este script no SQL Editor do Supabase
 
--- 1. Verificar todos os status únicos na tabela clientes
-SELECT DISTINCT status, COUNT(*) as quantidade
-FROM clientes 
-GROUP BY status 
-ORDER BY quantidade DESC;
-
--- 2. Verificar se existem clientes com status 'pendente' ou 'iniciar_obra'
+-- 1. Verificar se a tabela status_clientes existe
 SELECT 
-  status,
-  COUNT(*) as quantidade
-FROM clientes 
-WHERE status IN ('pendente', 'iniciar_obra')
-GROUP BY status;
+    'Verificando tabela status_clientes' as info,
+    CASE 
+        WHEN EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'status_clientes') 
+        THEN '✅ Tabela EXISTE'
+        ELSE '❌ Tabela NÃO EXISTE'
+    END as status_tabela;
 
--- 3. Verificar se existem clientes associados a usuários
+-- 2. Verificar se há dados na tabela
 SELECT 
-  COUNT(*) as total_clientes_usuarios
-FROM clientes_usuarios 
-WHERE ativo = true;
+    'Dados na tabela status_clientes' as info,
+    COUNT(*) as total_registros,
+    COUNT(CASE WHEN ativo = true THEN 1 END) as ativos
+FROM status_clientes;
 
--- 4. Verificar relacionamentos específicos
+-- 3. Verificar os dados específicos
 SELECT 
-  cu.profile_id,
-  p.nome as nome_usuario,
-  p.email as email_usuario,
-  c.nome_cliente,
-  c.status,
-  c.data_cadastro
-FROM clientes_usuarios cu
-INNER JOIN profiles p ON cu.profile_id = p.id
-INNER JOIN clientes c ON cu.cliente_id = c.id
-WHERE cu.ativo = true
-ORDER BY p.nome, c.status;
+    'Dados específicos' as info,
+    id,
+    status,
+    ativo,
+    data_atualizacao
+FROM status_clientes
+ORDER BY id;
 
--- 5. Verificar se há clientes com status que podem ser considerados "pendentes"
+-- 4. Verificar se há algum problema com a estrutura
 SELECT 
-  status,
-  COUNT(*) as quantidade,
-  'Possível status pendente' as observacao
-FROM clientes 
-WHERE status IN ('pendente', 'iniciar_obra', 'aguardando', 'novo', 'cadastrado')
-GROUP BY status;
-
--- 6. Verificar estrutura da tabela clientes
-SELECT 
-  column_name, 
-  data_type, 
-  is_nullable,
-  column_default
+    'Estrutura da tabela' as info,
+    column_name,
+    data_type,
+    is_nullable,
+    column_default
 FROM information_schema.columns 
-WHERE table_name = 'clientes' 
-  AND column_name = 'status'
+WHERE table_name = 'status_clientes'
 ORDER BY ordinal_position;
+
+-- 5. Testar inserção de dados se a tabela estiver vazia
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM status_clientes) THEN
+        RAISE NOTICE 'Tabela status_clientes está vazia. Inserindo dados padrão...';
+        
+        INSERT INTO status_clientes (status, ativo) VALUES
+            ('Pendente', true),
+            ('Em andamento', true),
+            ('Finalizado', true),
+            ('Validado', true);
+            
+        RAISE NOTICE 'Dados padrão inseridos com sucesso!';
+    ELSE
+        RAISE NOTICE 'Tabela status_clientes já possui dados.';
+    END IF;
+END $$;
+
+-- 6. Verificar resultado final
+SELECT 
+    'Resultado final' as info,
+    id,
+    status,
+    ativo
+FROM status_clientes
+ORDER BY id;
