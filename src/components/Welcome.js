@@ -1022,7 +1022,9 @@ const Welcome = () => {
     // Criar novo timeout
     const timeout = setTimeout(async () => {
       try {
-        let query = supabase
+        // Com RLS habilitado, a consulta será automaticamente filtrada
+        // baseada nas políticas de segurança do usuário logado
+        const { data, error } = await supabase
           .from('clientes')
           .select(`
             *,
@@ -1033,13 +1035,6 @@ const Welcome = () => {
           `)
           .order('created_at', { ascending: false })
 
-        // Se for instalador, filtrar apenas clientes associados
-        if (userRole === 'instalador') {
-          query = query.eq('usuario_instalador_id', user.id)
-        }
-
-        const { data, error } = await query
-
         if (error) throw error
 
         setClientes(data || [])
@@ -1049,25 +1044,9 @@ const Welcome = () => {
     }, 100) // Delay de 100ms
 
     setLoadClientesTimeout(timeout)
-  }, [userRole, user?.id, loadClientesTimeout])
+  }, [loadClientesTimeout])
 
-  // Função de teste sem debounce para debug
-  const loadClientesTeste = useCallback(async () => {
-    try {
-      let query = supabase
-        .from('clientes')
-        .select('*')
-        .order('created_at', { ascending: false })
 
-      const { data, error } = await query
-
-      if (error) throw error
-
-      setClientes(data || [])
-    } catch (error) {
-      console.error('Erro ao carregar clientes:', error)
-    }
-  }, [])
   
   // Debounce para presenças
   const [loadPresencasTimeout, setLoadPresencasTimeout] = useState(null)
@@ -3815,11 +3794,9 @@ const Welcome = () => {
                        required
                      >
                        <option value="">Selecione uma função</option>
-                       {cargos.map((cargo) => (
-                         <option key={cargo.id} value={cargo.cargo}>
-                           {cargo.ativo ? '✅' : '❌'} {cargo.cargo}
-                         </option>
-                       ))}
+                       <option value="administrador">👑 Administrador</option>
+                       <option value="administrativo">📋 Administrativo</option>
+                       <option value="instalador">🔧 Instalador</option>
                      </select>
                    </div>
                    
