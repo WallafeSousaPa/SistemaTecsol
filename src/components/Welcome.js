@@ -77,6 +77,14 @@ const Welcome = () => {
    // Estados para status de clientes
    const [statusClientes, setStatusClientes] = useState([])
    
+   // Estados para medição
+   const [medicaoData, setMedicaoData] = useState([])
+   const [medicaoLoading, setMedicaoLoading] = useState(false)
+   const [medicaoPeriodo, setMedicaoPeriodo] = useState({
+     inicio: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 dias atrás
+     fim: new Date().toISOString().split('T')[0] // Hoje
+   })
+   
    // Estados para formulários de tipos
    const [showTipoServicoForm, setShowTipoServicoForm] = useState(false)
    const [editingTipoServico, setEditingTipoServico] = useState(null)
@@ -732,6 +740,69 @@ const Welcome = () => {
      }
    }
    
+   // Exportar medição para Excel
+   const exportarMedicaoExcel = () => {
+     if (medicaoData.length === 0) {
+       showNotification('Não há dados para exportar!', 'warning')
+       return
+     }
+     
+     try {
+       // Criar cabeçalho do CSV
+       const headers = [
+         'CLIENTE',
+         'DATA',
+         'TIPO DE SERVIÇO',
+         'QTD MÓDULOS',
+         'PADRÃO',
+         'CONFIG. INVERSOR',
+         'DESLOCAMENTO',
+         'NOTA MATERIAL',
+         'OBRA CIVIL',
+         'EQUIPE',
+         'TOTAL',
+         'OBSERVAÇÃO'
+       ]
+       
+       // Criar linhas de dados
+       const rows = medicaoData.map(item => [
+         item.cliente,
+         new Date(item.data).toLocaleDateString('pt-BR'),
+         item.tipo_servico,
+         item.qtd_modulos,
+         item.padrao,
+         item.configuracao_inversor,
+         item.deslocamento_buscar_material,
+         item.nota_material,
+         item.valor_obra_civil,
+         item.equipe,
+         `R$ ${item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+         item.observacao
+       ])
+       
+       // Combinar cabeçalho e dados
+       const csvContent = [headers, ...rows]
+         .map(row => row.map(cell => `"${cell}"`).join(','))
+         .join('\n')
+       
+       // Criar e baixar arquivo
+       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+       const link = document.createElement('a')
+       const url = URL.createObjectURL(blob)
+       link.setAttribute('href', url)
+       link.setAttribute('download', `medicao_tecsol_${medicaoPeriodo.inicio}_${medicaoPeriodo.fim}.csv`)
+       link.style.visibility = 'hidden'
+       document.body.appendChild(link)
+       link.click()
+       document.body.removeChild(link)
+       
+       showNotification('Relatório exportado com sucesso!', 'success')
+     } catch (error) {
+       console.error('Erro ao exportar medição:', error)
+       showNotification('Erro ao exportar medição: ' + error.message, 'error')
+     }
+   }
+   
    // Salvar tipo de padrão
    const handleTipoPadraoFormSubmit = async (e) => {
      e.preventDefault()
@@ -901,6 +972,92 @@ const Welcome = () => {
     }
   }, [userRole, isLoading])
   
+  // Função para obter valor do padrão
+  const getValorPadrao = (nomePadrao) => {
+    switch (nomePadrao?.toLowerCase()) {
+      case 'fachada':
+        return 200
+      case 'poste auxiliar':
+        return 300
+      case 'saga':
+        return 400
+      case 'fachada com ancoragem':
+        return 200
+      case 'não instalado':
+        return 0
+      default:
+        return 0
+    }
+  }
+  
+  // Carregar dados de medição
+  const loadMedicao = useCallback(async () => {
+    setMedicaoLoading(true)
+    try {
+      // Buscar clientes do período especificado
+      const { data: clientes, error: clientesError } = await supabase
+        .from('clientes')
+        .select(`
+          *,
+          tipo_servico:tipo_servico(nome),
+          tipo_padrao:tipo_padrao(nome),
+          equipe:equipes(nome),
+          status_info:status_clientes(status)
+        `)
+        .gte('data_cadastro', medicaoPeriodo.inicio)
+        .lte('data_cadastro', medicaoPeriodo.fim)
+        .order('data_cadastro', { ascending: false })
+
+      if (clientesError) throw clientesError
+
+      // Processar dados para medição
+      const medicaoProcessada = clientes.map(cliente => {
+        // Calcular valores baseados no padrão
+        const valorPadrao = getValorPadrao(cliente.tipo_padrao?.nome)
+        const valorInversor = cliente.configuracao_inversor ? 100 : 0
+        const valorDeslocamento = cliente.deslocamento_buscar_material ? 50 : 0
+        const valorNotaMaterial = cliente.nota_material ? 0 : 0
+        const valorObraCivil = cliente.obra_civil ? 0 : 0
+        
+        // Calcular total
+        const total = (90 * (cliente.quantidade_modulos || 0)) + 
+                     valorPadrao + 
+                     valorInversor + 
+                     valorDeslocamento + 
+                     valorNotaMaterial + 
+                     valorObraCivil
+
+        return {
+          id: cliente.id,
+          cliente: cliente.nome_cliente,
+          data: cliente.data_cadastro,
+          tipo_servico: cliente.tipo_servico?.nome || 'N/A',
+          qtd_modulos: cliente.quantidade_modulos || 0,
+          padrao: cliente.tipo_padrao?.nome || 'N/A',
+          configuracao_inversor: cliente.configuracao_inversor ? 'Sim' : 'Não',
+          deslocamento_buscar_material: cliente.deslocamento_buscar_material ? 'Sim' : 'Não',
+          nota_material: cliente.nota_material ? 'Sim' : 'Não',
+          valor_obra_civil: cliente.obra_civil ? 'Sim' : 'Não',
+          equipe: cliente.equipe?.nome || 'N/A',
+          total: total,
+          observacao: cliente.observacoes || '',
+          // Valores para cálculos
+          valor_padrao: valorPadrao,
+          valor_inversor: valorInversor,
+          valor_deslocamento: valorDeslocamento,
+          valor_nota_material: valorNotaMaterial,
+          valor_obra_civil: valorObraCivil
+        }
+      })
+
+      setMedicaoData(medicaoProcessada)
+    } catch (error) {
+      console.error('Erro ao carregar dados de medição:', error)
+    } finally {
+      setMedicaoLoading(false)
+    }
+  }, [medicaoPeriodo])
+  
   // Carregar equipes
   const loadEquipes = async () => {
     try {
@@ -932,7 +1089,7 @@ const Welcome = () => {
      }
    }
    
-   // Carregar tipos de padrão
+          // Carregar tipos de padrão
    const loadTiposPadrao = async () => {
      try {
        const { data, error } = await supabase
@@ -984,6 +1141,13 @@ const Welcome = () => {
       setUsuariosInstaladores([])
     }
   }
+  
+  // Carregar medição quando acessar a tela
+  useEffect(() => {
+    if (currentView === 'medicao' && userRole) {
+      loadMedicao()
+    }
+  }, [currentView, userRole, loadMedicao])
   
   // Carregar responsáveis de um cliente
   const loadResponsaveisCliente = async (clienteId) => {
@@ -2578,6 +2742,126 @@ const Welcome = () => {
        </div>
      </div>
    )
+   
+   // Renderizar tela de medição
+   const renderMedicao = () => (
+     <div className="menu-content">
+       <div className="menu-header">
+         <h2>📊 Medição de Clientes</h2>
+         <button onClick={() => setCurrentView('dashboard')} className="back-button">
+           ← Voltar ao Dashboard
+         </button>
+       </div>
+       
+       <div className="medicao-controls">
+         <div className="periodo-selector">
+           <label htmlFor="periodo-inicio">Período de:</label>
+           <input
+             type="date"
+             id="periodo-inicio"
+             value={medicaoPeriodo.inicio}
+             onChange={(e) => setMedicaoPeriodo(prev => ({ ...prev, inicio: e.target.value }))}
+           />
+           <label htmlFor="periodo-fim">até:</label>
+           <input
+             type="date"
+             id="periodo-fim"
+             value={medicaoPeriodo.fim}
+             onChange={(e) => setMedicaoPeriodo(prev => ({ ...prev, fim: e.target.value }))}
+           />
+           <button onClick={loadMedicao} className="action-button primary">
+             🔍 Buscar
+           </button>
+         </div>
+         
+         {security.canExportMedicao(userRole) && (
+           <div className="export-controls">
+             <button onClick={() => exportarMedicaoExcel()} className="action-button secondary">
+               📊 Exportar Excel
+             </button>
+           </div>
+         )}
+       </div>
+       
+       <div className="medicao-summary">
+         <div className="summary-card">
+           <h4>Total de Clientes</h4>
+           <span className="summary-value">{medicaoData.length}</span>
+         </div>
+         <div className="summary-card">
+           <h4>Valor Total</h4>
+           <span className="summary-value">
+             R$ {medicaoData.reduce((sum, item) => sum + item.total, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+           </span>
+         </div>
+         <div className="summary-card">
+           <h4>Módulos Totais</h4>
+           <span className="summary-value">
+             {medicaoData.reduce((sum, item) => sum + item.qtd_modulos, 0)}
+           </span>
+         </div>
+       </div>
+       
+       <div className="medicao-list">
+         <h3>Dados de Medição ({medicaoData.length})</h3>
+         {medicaoLoading ? (
+           <div className="loading-container">
+             <div className="loading-spinner"></div>
+             <p>Carregando dados de medição...</p>
+           </div>
+         ) : (
+           <div className="table-container">
+             <table className="data-table medicao-table">
+               <thead>
+                 <tr>
+                   <th>CLIENTE</th>
+                   <th>DATA</th>
+                   <th>TIPO DE SERVIÇO</th>
+                   <th>QTD MÓDULOS</th>
+                   <th>PADRÃO</th>
+                   <th>CONFIG. INVERSOR</th>
+                   <th>DESLOCAMENTO</th>
+                   <th>NOTA MATERIAL</th>
+                   <th>OBRA CIVIL</th>
+                   <th>EQUIPE</th>
+                   <th>TOTAL</th>
+                   <th>OBSERVAÇÃO</th>
+                 </tr>
+               </thead>
+               <tbody>
+                 {medicaoData.length === 0 ? (
+                   <tr>
+                     <td colSpan="12" className="no-data">
+                       Nenhum dado de medição encontrado para o período selecionado.
+                     </td>
+                   </tr>
+                 ) : (
+                   medicaoData.map((item) => (
+                     <tr key={item.id}>
+                       <td>{item.cliente}</td>
+                       <td>{new Date(item.data).toLocaleDateString('pt-BR')}</td>
+                       <td>{item.tipo_servico}</td>
+                       <td className="text-center">{item.qtd_modulos}</td>
+                       <td>{item.padrao}</td>
+                       <td className="text-center">{item.configuracao_inversor}</td>
+                       <td className="text-center">{item.deslocamento_buscar_material}</td>
+                       <td className="text-center">{item.nota_material}</td>
+                       <td className="text-center">{item.valor_obra_civil}</td>
+                       <td>{item.equipe}</td>
+                       <td className="text-center total-value">
+                         R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                       </td>
+                       <td className="observacao-cell">{item.observacao}</td>
+                     </tr>
+                   ))
+                 )}
+               </tbody>
+             </table>
+           </div>
+         )}
+       </div>
+     </div>
+   )
 
   // Renderizar lista de presenças
   const renderPresenca = () => (
@@ -2800,6 +3084,8 @@ const Welcome = () => {
         return renderTiposServico()
       case 'tipos_padrao':
         return renderTiposPadrao()
+      case 'medicao':
+        return renderMedicao()
       default:
         return renderDashboard()
     }
@@ -3208,6 +3494,16 @@ const Welcome = () => {
                 >
                   <span className="nav-icon">⚡</span>
                   <span className="nav-text">Tipos de Padrão</span>
+                </button>
+              )}
+              
+              {security.canAccessMenu(userRole, 'medicao') && (
+                <button 
+                  onClick={() => handleNavItemClick('medicao')} 
+                  className={`nav-item ${currentView === 'medicao' ? 'active' : ''}`}
+                >
+                  <span className="nav-icon">📊</span>
+                  <span className="nav-text">Medição</span>
                 </button>
               )}
             </div>

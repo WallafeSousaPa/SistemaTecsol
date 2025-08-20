@@ -125,6 +125,13 @@ export const PERMISSIONS = {
     ASSIGN: [USER_ROLES.ADMINISTRADOR, USER_ROLES.ADMINISTRATIVO],
     READ: [USER_ROLES.ADMINISTRADOR, USER_ROLES.ADMINISTRATIVO, USER_ROLES.INSTALADOR],
     CHANGE: [USER_ROLES.ADMINISTRADOR, USER_ROLES.ADMINISTRATIVO]
+  },
+  
+  // Medição e relatórios
+  MEDICAO: {
+    READ: [USER_ROLES.ADMINISTRADOR, USER_ROLES.ADMINISTRATIVO, USER_ROLES.INSTALADOR],
+    EXPORT: [USER_ROLES.ADMINISTRADOR, USER_ROLES.ADMINISTRATIVO],
+    CALCULATE: [USER_ROLES.ADMINISTRADOR, USER_ROLES.ADMINISTRATIVO, USER_ROLES.INSTALADOR]
   }
 }
 
@@ -234,6 +241,8 @@ export const security = {
         return [USER_ROLES.ADMINISTRADOR, USER_ROLES.ADMINISTRATIVO].includes(userRole)
       case 'cargos':
         return [USER_ROLES.ADMINISTRADOR, USER_ROLES.ADMINISTRATIVO].includes(userRole)
+      case 'medicao':
+        return [USER_ROLES.ADMINISTRADOR, USER_ROLES.ADMINISTRATIVO, USER_ROLES.INSTALADOR].includes(userRole)
       case 'dashboard':
         return [USER_ROLES.ADMINISTRADOR, USER_ROLES.ADMINISTRATIVO, USER_ROLES.INSTALADOR].includes(userRole)
       default:
@@ -263,5 +272,15 @@ export const security = {
   // Verificar se o usuário pode gerenciar usuários
   canManageUsers: (userRole) => {
     return userRole === USER_ROLES.ADMINISTRADOR
+  },
+  
+  // Verificar se o usuário pode acessar medição
+  canAccessMedicao: (userRole) => {
+    return [USER_ROLES.ADMINISTRADOR, USER_ROLES.ADMINISTRATIVO, USER_ROLES.INSTALADOR].includes(userRole)
+  },
+  
+  // Verificar se o usuário pode exportar medição
+  canExportMedicao: (userRole) => {
+    return [USER_ROLES.ADMINISTRADOR, USER_ROLES.ADMINISTRATIVO].includes(userRole)
   }
 }
