@@ -74,9 +74,9 @@ export const PERMISSIONS = {
     CREATE: [USER_ROLES.ADMINISTRADOR, USER_ROLES.ADMINISTRATIVO, USER_ROLES.INSTALADOR],
     READ: [USER_ROLES.ADMINISTRADOR, USER_ROLES.ADMINISTRATIVO, USER_ROLES.INSTALADOR],
     UPDATE: [USER_ROLES.ADMINISTRADOR, USER_ROLES.ADMINISTRATIVO],
-    DELETE: [USER_ROLES.ADMINISTRADOR, USER_ROLES.ADMINISTRATIVO],
+    DELETE: [USER_ROLES.ADMINISTRADOR], // Apenas administradores podem excluir
     EDIT: [USER_ROLES.ADMINISTRADOR, USER_ROLES.ADMINISTRATIVO],
-    REMOVE: [USER_ROLES.ADMINISTRADOR, USER_ROLES.ADMINISTRATIVO],
+    REMOVE: [USER_ROLES.ADMINISTRADOR], // Apenas administradores podem remover
     CONCLUDE_WORK: [USER_ROLES.ADMINISTRADOR, USER_ROLES.ADMINISTRATIVO, USER_ROLES.INSTALADOR]
   },
   
@@ -223,7 +223,7 @@ export const security = {
     
     switch (menuName) {
       case 'usuarios':
-        return [USER_ROLES.ADMINISTRADOR].includes(userRole)
+        return [USER_ROLES.ADMINISTRADOR].includes(userRole) // Apenas administradores
       case 'clientes':
         return [USER_ROLES.ADMINISTRADOR, USER_ROLES.ADMINISTRATIVO, USER_ROLES.INSTALADOR].includes(userRole)
       case 'presenca':
@@ -253,5 +253,15 @@ export const security = {
       default:
         return 'Usuário'
     }
+  },
+  
+  // Verificar se o usuário pode remover clientes
+  canRemoveClient: (userRole) => {
+    return userRole === USER_ROLES.ADMINISTRADOR
+  },
+  
+  // Verificar se o usuário pode gerenciar usuários
+  canManageUsers: (userRole) => {
+    return userRole === USER_ROLES.ADMINISTRADOR
   }
 }

@@ -1783,14 +1783,16 @@ const Welcome = () => {
           </div>
         </div>
         
-        <div className="stat-card accent">
-          <div className="stat-icon">👤</div>
-          <div className="stat-content">
-            <h3>{usuarios.length}</h3>
-            <p>Usuários</p>
-            <span className="stat-trend">🔐 Acesso ao sistema</span>
+        {security.canManageUsers(userRole) && (
+          <div className="stat-card accent">
+            <div className="stat-icon">👤</div>
+            <div className="stat-content">
+              <h3>{usuarios.length}</h3>
+              <p>Usuários</p>
+              <span className="stat-trend">🔐 Acesso ao sistema</span>
+            </div>
           </div>
-        </div>
+        )}
       </div>
       
       <div className="dashboard-sections">
@@ -1822,13 +1824,15 @@ const Welcome = () => {
                 <span>Novo Colaborador</span>
               </button>
               
-              <button 
-                onClick={() => setCurrentView('usuarios')} 
-                className="quick-action-card"
-              >
-                <div className="action-icon">👤</div>
-                <span>Novo Usuário</span>
-              </button>
+              {security.canManageUsers(userRole) && (
+                <button 
+                  onClick={() => setCurrentView('usuarios')} 
+                  className="quick-action-card"
+                >
+                  <div className="action-icon">👤</div>
+                  <span>Novo Usuário</span>
+                </button>
+              )}
             </div>
           </div>
           
@@ -2085,7 +2089,7 @@ const Welcome = () => {
                             </button>
                           )}
                           
-                          {security.hasPermission(userRole, 'CLIENT_MANAGEMENT', 'REMOVE') && (
+                          {security.canRemoveClient(userRole) && (
                             <button 
                               onClick={() => handleDeleteCliente(cliente)} 
                               className="action-btn small danger"
