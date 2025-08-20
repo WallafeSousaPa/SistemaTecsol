@@ -37,7 +37,7 @@ O favicon representa:
 - **Letra T**: Inicial de "Tecsol"
 - **Cores**: Gradiente azul (#667eea) para roxo (#764ba2)
 - **Design**: Circular com elementos decorativos
-- **Estilo**: Profissional e moderno
+- **Estilo**: Profissional e moderno.
 
 ## Configuração no HTML
 
