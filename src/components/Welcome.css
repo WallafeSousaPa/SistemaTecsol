@@ -1276,6 +1276,49 @@ th {
   font-size: var(--mobile-font-size);
 }
 
+/* Campos de valor editáveis na medição */
+.valor-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.valor-prefix {
+  font-size: 12px;
+  font-weight: 500;
+  color: #495057;
+  margin-right: 2px;
+}
+
+.valor-input {
+  width: 70px;
+  padding: 4px 6px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+  text-align: center;
+  background: #f8f9fa;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.valor-input:focus {
+  outline: none;
+  border-color: #667eea;
+  background: white;
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+}
+
+.valor-input:hover {
+  background: white;
+  border-color: #adb5bd;
+}
+
+.valor-input::placeholder {
+  color: #adb5bd;
+  font-style: italic;
+}
+
 /* Mobile-first error states */
 .error-message {
   background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);

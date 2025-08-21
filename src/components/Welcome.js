@@ -1026,7 +1026,8 @@ const Welcome = () => {
         const valorInversor = cliente.configuracao_inversor ? 100 : 0
         const valorDeslocamento = cliente.deslocamento_buscar_material ? 50 : 0
         const valorNotaMaterial = cliente.nota_material ? 0 : 0
-        const valorObraCivil = cliente.obra_civil ? 0 : 0
+        const valorObraCivil = cliente.valor_obra || 0
+        const valorMaterial = cliente.valor_material || 0
         
         // Calcular total
         const total = (90 * (cliente.quantidade_modulos || 0)) + 
@@ -1034,19 +1035,20 @@ const Welcome = () => {
                      valorInversor + 
                      valorDeslocamento + 
                      valorNotaMaterial + 
-                     valorObraCivil
+                     valorObraCivil + 
+                     valorMaterial
 
         return {
           id: cliente.id,
           cliente: cliente.nome_cliente,
-          data: cliente.data_cadastro,
+          data: cliente.data_instalacao,
           tipo_servico: cliente.tipo_servico?.nome || 'N/A',
           qtd_modulos: cliente.quantidade_modulos || 0,
           padrao: cliente.tipo_padrao?.nome || 'N/A',
           configuracao_inversor: cliente.configuracao_inversor ? 'Sim' : 'Não',
           deslocamento_buscar_material: cliente.deslocamento_buscar_material ? 'Sim' : 'Não',
           nota_material: cliente.nota_material ? 'Sim' : 'Não',
-          valor_obra_civil: cliente.obra_civil ? 'Sim' : 'Não',
+          obra_civil: cliente.obra_civil ? 'Sim' : 'Não',
           equipe: cliente.equipe?.nome || 'N/A',
           total: total,
           observacao: cliente.observacoes || '',
@@ -1055,7 +1057,10 @@ const Welcome = () => {
           valor_inversor: valorInversor,
           valor_deslocamento: valorDeslocamento,
           valor_nota_material: valorNotaMaterial,
-          valor_obra_civil: valorObraCivil
+          valor_obra_civil: valorObraCivil,
+          // Valores editáveis
+          valor_obra: cliente.valor_obra || 0,
+          valor_material: cliente.valor_material || 0
         }
       })
 
@@ -1570,6 +1575,66 @@ const Welcome = () => {
     }
   }
   
+  // Função para editar valores na medição
+  const handleEditValorMedicao = async (clienteId, campo, valor) => {
+    try {
+      // Atualizar o estado local primeiro para feedback imediato
+      setMedicaoData(prevData => 
+        prevData.map(item => 
+          item.id === clienteId 
+            ? { ...item, [campo]: valor }
+            : item
+        )
+      )
+
+      // Atualizar no banco de dados
+      const { error } = await supabase
+        .from('clientes')
+        .update({ 
+          [campo]: valor,
+          data_atualizacao: new Date().toISOString()
+        })
+        .eq('id', clienteId)
+
+      if (error) throw error
+
+      // Recalcular o total para este cliente
+      const clienteAtualizado = medicaoData.find(item => item.id === clienteId)
+      if (clienteAtualizado) {
+        const novoTotal = (90 * (clienteAtualizado.qtd_modulos || 0)) + 
+                         clienteAtualizado.valor_padrao + 
+                         clienteAtualizado.valor_inversor + 
+                         clienteAtualizado.valor_deslocamento + 
+                         clienteAtualizado.valor_nota_material + 
+                         (campo === 'valor_obra' ? valor : clienteAtualizado.valor_obra_civil) + 
+                         (campo === 'valor_material' ? valor : clienteAtualizado.valor_material)
+
+        // Atualizar o total no estado local
+        setMedicaoData(prevData => 
+          prevData.map(item => 
+            item.id === clienteId 
+              ? { ...item, total: novoTotal }
+              : item
+          )
+        )
+      }
+
+      showNotification(`Valor ${campo === 'valor_obra' ? 'da obra civil' : 'do material'} atualizado com sucesso!`, 'success')
+    } catch (error) {
+      console.error('Erro ao atualizar valor:', error)
+      showNotification(`Erro ao atualizar valor: ${error.message}`, 'error')
+      
+      // Reverter mudança no estado local em caso de erro
+      setMedicaoData(prevData => 
+        prevData.map(item => 
+          item.id === clienteId 
+            ? { ...item, [campo]: item[campo] }
+            : item
+        )
+      )
+    }
+  }
+
   // Editar cliente
   const handleEditCliente = async (cliente) => {
     try {
@@ -2832,6 +2897,8 @@ const Welcome = () => {
                    <th>DESLOCAMENTO</th>
                    <th>NOTA MATERIAL</th>
                    <th>OBRA CIVIL</th>
+                   <th>VALOR OBRA</th>
+                   <th>VALOR MATERIAL</th>
                    <th>EQUIPE</th>
                    <th>TOTAL</th>
                    <th>OBSERVAÇÃO</th>
@@ -2840,7 +2907,7 @@ const Welcome = () => {
                <tbody>
                  {medicaoData.length === 0 ? (
                    <tr>
-                     <td colSpan="12" className="no-data">
+                     <td colSpan="14" className="no-data">
                        Nenhum dado de medição encontrado para o período selecionado.
                      </td>
                    </tr>
@@ -2855,7 +2922,37 @@ const Welcome = () => {
                        <td className="text-center">{item.configuracao_inversor}</td>
                        <td className="text-center">{item.deslocamento_buscar_material}</td>
                        <td className="text-center">{item.nota_material}</td>
-                       <td className="text-center">{item.valor_obra_civil}</td>
+                       <td className="text-center">{item.obra_civil}</td>
+                       <td className="text-center">
+                         <div className="valor-container">
+                           <span className="valor-prefix">R$</span>
+                           <input
+                             type="number"
+                             value={item.valor_obra}
+                             onChange={(e) => handleEditValorMedicao(item.id, 'valor_obra', parseFloat(e.target.value) || 0)}
+                             className="valor-input"
+                             min="0"
+                             step="0.01"
+                             title="Editar valor da obra civil"
+                             placeholder="0,00"
+                           />
+                         </div>
+                       </td>
+                       <td className="text-center">
+                         <div className="valor-container">
+                           <span className="valor-prefix">R$</span>
+                           <input
+                             type="number"
+                             value={item.valor_material}
+                             onChange={(e) => handleEditValorMedicao(item.id, 'valor_material', parseFloat(e.target.value) || 0)}
+                             className="valor-input"
+                             min="0"
+                             step="0.01"
+                             title="Editar valor do material"
+                             placeholder="0,00"
+                           />
+                         </div>
+                       </td>
                        <td>{item.equipe}</td>
                        <td className="text-center total-value">
                          R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
