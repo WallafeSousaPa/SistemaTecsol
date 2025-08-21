@@ -600,6 +600,26 @@
   cursor: not-allowed;
 }
 
+.export-button {
+  background-color: #28a745;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: background-color 0.3s;
+}
+
+.export-button:hover {
+  background-color: #218838;
+}
+
+.export-button:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+
 .delete-button {
   background-color: #dc3545;
   color: white;
@@ -642,6 +662,36 @@
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+/* Controles manuais */
+.manual-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.test-button {
+  background-color: #6f42c1;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: all 0.3s ease;
+}
+
+.test-button:hover {
+  background-color: #5a32a3;
+  transform: translateY(-2px);
+}
+
+.test-button:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+  transform: none;
 }
 
 /* Responsividade */

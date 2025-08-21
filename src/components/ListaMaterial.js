@@ -69,6 +69,8 @@ const ListaMaterial = ({ onBack, userRole }) => {
           id,
           data_criacao,
           observacoes,
+          total_resolve,
+          total_tecsol,
           clientes!inner(nome_cliente)
         `)
         .order('data_criacao', { ascending: false })
@@ -84,19 +86,61 @@ const ListaMaterial = ({ onBack, userRole }) => {
     }
   }
 
-  // Função para buscar valor histórico do material
+    // Função para buscar valor histórico do material
   const buscarValorHistorico = async (nomeMaterial) => {
     try {
-      const { data, error } = await supabase
+      // Normalizar o nome do material para busca
+      const nomeNormalizado = nomeMaterial.trim().toLowerCase()
+      
+      // Busca exata primeiro
+      let { data, error } = await supabase
         .from('itens_material')
-        .select('valor_unitario')
+        .select('valor_unitario, material, lista_material_id')
         .eq('material', nomeMaterial)
         .not('valor_unitario', 'eq', 0)
-        .order('created_at', { ascending: false })
+        .order('lista_material_id', { ascending: false })
         .limit(1)
       
       if (error) throw error
-      return data?.[0]?.valor_unitario || 0
+      
+      // Se não encontrou, tentar busca case-insensitive
+      if (!data || data.length === 0) {
+        const { data: dataCaseInsensitive, error: errorCaseInsensitive } = await supabase
+          .from('itens_material')
+          .select('valor_unitario, material, lista_material_id')
+          .ilike('material', nomeMaterial)
+          .not('valor_unitario', 'eq', 0)
+          .order('lista_material_id', { ascending: false })
+          .limit(1)
+        
+        if (errorCaseInsensitive) throw errorCaseInsensitive
+        
+        if (dataCaseInsensitive && dataCaseInsensitive.length > 0) {
+          return dataCaseInsensitive[0].valor_unitario
+        }
+      } else {
+        return data[0].valor_unitario
+      }
+      
+      // Se ainda não encontrou, tentar busca por similaridade
+      if (!data || data.length === 0) {
+        const { data: dataSimilar, error: errorSimilar } = await supabase
+          .from('itens_material')
+          .select('valor_unitario, material, lista_material_id')
+          .or(`material.ilike.%${nomeNormalizado}%,material.ilike.${nomeNormalizado}%,material.ilike.%${nomeNormalizado}`)
+          .not('valor_unitario', 'eq', 0)
+          .order('lista_material_id', { ascending: false })
+          .limit(1)
+        
+        if (errorSimilar) throw errorSimilar
+        
+        if (dataSimilar && dataSimilar.length > 0) {
+          return dataSimilar[0].valor_unitario
+        }
+      }
+      
+      return 0
+      
     } catch (error) {
       console.error('Erro ao buscar valor histórico:', error)
       return 0
@@ -223,6 +267,7 @@ const ListaMaterial = ({ onBack, userRole }) => {
             // Se não há valor na planilha, buscar valor histórico
             if (!item.valor_unitario || item.valor_unitario === 0) {
               const valorHistorico = await buscarValorHistorico(item.material)
+              
               if (valorHistorico > 0) {
                 item.valor_unitario = valorHistorico
                 item.valor_historico_carregado = true // Marcar que foi carregado do histórico
@@ -504,6 +549,140 @@ const ListaMaterial = ({ onBack, userRole }) => {
     fetchClientes()
   }
 
+  // Função para exportar PDF (apenas materiais TecSol)
+  const handleExportPDF = async (listaId, nomeCliente) => {
+    try {
+      setIsLoading(true)
+      setMessage('Gerando PDF...')
+      setMessageType('info')
+
+      // Buscar itens da lista
+      const { data: itens, error: itensError } = await supabase
+        .from('itens_material')
+        .select('*')
+        .eq('lista_material_id', listaId)
+
+      if (itensError) throw itensError
+
+      // Filtrar apenas materiais fornecidos pela TecSol
+      const materiaisTecSol = itens.filter(item => item.tecsol_forneceu)
+      
+      if (materiaisTecSol.length === 0) {
+        setMessage('Nenhum material TecSol encontrado para exportar.')
+        setMessageType('warning')
+        return
+      }
+
+      // Calcular total TecSol
+      const totalTecSol = materiaisTecSol.reduce((total, item) => {
+        return total + (item.valor_unitario * item.quantidade)
+      }, 0)
+
+      // Criar conteúdo do PDF
+      const pdfContent = {
+        cliente: nomeCliente,
+        data: new Date().toLocaleDateString('pt-BR'),
+        itens: materiaisTecSol,
+        total: totalTecSol
+      }
+
+      // Gerar PDF usando jsPDF
+      const { jsPDF } = await import('jspdf')
+      const doc = new jsPDF()
+
+      // Configurar fonte para caracteres especiais
+      doc.setFont('helvetica')
+
+      // Título
+      doc.setFontSize(20)
+      doc.text('ORÇAMENTO TECSOL', 105, 20, { align: 'center' })
+
+      // Informações do cliente
+      doc.setFontSize(12)
+      doc.text(`Cliente: ${pdfContent.cliente}`, 20, 40)
+      doc.text(`Data: ${pdfContent.data}`, 20, 50)
+
+      // Cabeçalho da tabela
+      doc.setFontSize(10)
+      doc.text('Material', 20, 70)
+      doc.text('Qtd.', 110, 70)
+      doc.text('Valor Unit.', 130, 70)
+      doc.text('Valor Total', 160, 70)
+
+      // Linha separadora
+      doc.line(20, 75, 190, 75)
+
+      // Itens
+      let yPosition = 85
+      pdfContent.itens.forEach((item, index) => {
+        if (yPosition > 250) {
+          doc.addPage()
+          yPosition = 20
+        }
+
+        // Função para quebrar texto em múltiplas linhas
+        const wrapText = (text, maxWidth) => {
+          const words = text.split(' ')
+          const lines = []
+          let currentLine = ''
+          
+          words.forEach(word => {
+            const testLine = currentLine + (currentLine ? ' ' : '') + word
+            if (testLine.length <= maxWidth) {
+              currentLine = testLine
+            } else {
+              if (currentLine) lines.push(currentLine)
+              currentLine = word
+            }
+          })
+          if (currentLine) lines.push(currentLine)
+          
+          return lines
+        }
+
+        // Material com quebra de linha automática (máximo 25 caracteres por linha)
+        const materialLines = wrapText(item.material, 25)
+        materialLines.forEach((line, lineIndex) => {
+          doc.text(line, 20, yPosition + (lineIndex * 4))
+        })
+        
+        // Quantidade (posicionada mais à direita, alinhada com o cabeçalho)
+        doc.text(item.quantidade.toString(), 110, yPosition)
+        
+        // Valor Unitário
+        doc.text(`R$ ${item.valor_unitario.toFixed(2)}`, 130, yPosition)
+        
+        // Valor Total
+        doc.text(`R$ ${(item.valor_unitario * item.quantidade).toFixed(2)}`, 160, yPosition)
+
+        // Ajustar posição Y baseado no número de linhas do material
+        yPosition += Math.max(10, materialLines.length * 4 + 2)
+      })
+
+      // Linha separadora antes do total
+      doc.line(20, yPosition + 5, 190, yPosition + 5)
+
+      // Total
+      doc.setFontSize(12)
+      doc.setFont('helvetica', 'bold')
+      doc.text(`TOTAL: R$ ${pdfContent.total.toFixed(2)}`, 140, yPosition + 15)
+
+      // Salvar PDF
+      const fileName = `orcamento_tecsol_${nomeCliente.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`
+      doc.save(fileName)
+
+      setMessage(`PDF exportado com sucesso! ${materiaisTecSol.length} itens TecSol incluídos.`)
+      setMessageType('success')
+
+    } catch (error) {
+      console.error('Erro ao exportar PDF:', error)
+      setMessage(`Erro ao exportar PDF: ${error.message}`)
+      setMessageType('error')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   // Calcular totais para exibição
   const { totalResolve, totalTecSol } = calculateTotals()
 
@@ -610,17 +789,34 @@ const ListaMaterial = ({ onBack, userRole }) => {
         </div>
       )}
 
-      {/* Adicionar Item Manualmente */}
-      <div className="form-section">
-        <h3>✏️ Adicionar Item Manualmente</h3>
-        <button 
-          className="add-button"
-          onClick={handleAddItem}
-          disabled={isLoading}
-        >
-          + Adicionar Item
-        </button>
-      </div>
+             {/* Adicionar Item Manualmente */}
+       <div className="form-section">
+         <h3>✏️ Adicionar Item Manualmente</h3>
+         <div className="manual-controls">
+           <button 
+             className="add-button"
+             onClick={handleAddItem}
+             disabled={isLoading}
+           >
+             + Adicionar Item
+           </button>
+           
+                       <button 
+              className="test-button"
+              onClick={async () => {
+                const materiais = ['Inversor', 'Módulo', 'Cabo'] // Exemplos
+                for (const material of materiais) {
+                  const valor = await buscarValorHistorico(material)
+                  // Teste silencioso - sem logs
+                }
+              }}
+              disabled={isLoading}
+              title="Testar busca de valores históricos"
+            >
+              🧪 Testar Valores Históricos
+            </button>
+         </div>
+       </div>
 
       {/* Preview dos Dados */}
       {showPreview && (
@@ -822,6 +1018,16 @@ const ListaMaterial = ({ onBack, userRole }) => {
                      >
                        📥 Carregar
                      </button>
+                     
+                     <button
+                       className="export-button"
+                       onClick={() => handleExportPDF(lista.id, lista.clientes?.nome_cliente)}
+                       disabled={isLoading}
+                       title="Exportar Orçamento TecSol (PDF)"
+                     >
+                       📄 Exportar PDF
+                     </button>
+                     
                      {(userRole === 'administrador' || userRole === 'administrativo') && (
                        <button
                          className="delete-button"
