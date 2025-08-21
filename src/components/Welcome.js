@@ -768,7 +768,6 @@ const Welcome = () => {
          'DESLOCAMENTO',
          'NOTA MATERIAL',
          'OBRA CIVIL',
-         'EQUIPE',
          'TOTAL',
          'OBSERVAÇÃO'
        ]
@@ -784,7 +783,6 @@ const Welcome = () => {
          item.deslocamento_buscar_material,
          item.nota_material,
          item.valor_obra_civil,
-         item.equipe,
          `R$ ${item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
          item.observacao
        ])
@@ -2899,7 +2897,6 @@ const Welcome = () => {
                    <th>OBRA CIVIL</th>
                    <th>VALOR OBRA</th>
                    <th>VALOR MATERIAL</th>
-                   <th>EQUIPE</th>
                    <th>TOTAL</th>
                    <th>OBSERVAÇÃO</th>
                  </tr>
@@ -2907,7 +2904,7 @@ const Welcome = () => {
                <tbody>
                  {medicaoData.length === 0 ? (
                    <tr>
-                     <td colSpan="14" className="no-data">
+                     <td colSpan="13" className="no-data">
                        Nenhum dado de medição encontrado para o período selecionado.
                      </td>
                    </tr>
@@ -2953,7 +2950,6 @@ const Welcome = () => {
                            />
                          </div>
                        </td>
-                       <td>{item.equipe}</td>
                        <td className="text-center total-value">
                          R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                        </td>
