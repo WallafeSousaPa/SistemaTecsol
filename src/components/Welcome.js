@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { validators, security, USER_ROLES } from '../config/security'
+import ListaMaterial from './ListaMaterial'
 import './Welcome.css'
 
 const Welcome = () => {
@@ -165,6 +166,9 @@ const Welcome = () => {
   const [clienteParaExcluir, setClienteParaExcluir] = useState(null)
   const [presencasCliente, setPresencasCliente] = useState([])
   const [showHamburgerMenu, setShowHamburgerMenu] = useState(false)
+  
+  // Estado para lista de material
+  const [showListaMaterial, setShowListaMaterial] = useState(false)
   
   // Estados para presença modal não fechável
   const [presencaModalNaoFechavel, setPresencaModalNaoFechavel] = useState(false)
@@ -453,6 +457,11 @@ const Welcome = () => {
   // Funções para menu hambúrguer
   const toggleHamburgerMenu = () => {
     setShowHamburgerMenu(!showHamburgerMenu)
+  }
+  
+  // Função para voltar da lista de material
+  const handleBackFromListaMaterial = () => {
+    setShowListaMaterial(false)
   }
 
   const closeHamburgerMenu = () => {
@@ -3039,6 +3048,16 @@ const Welcome = () => {
   
   // Renderizar conteúdo baseado na view atual
   const renderContent = () => {
+    // Verificar se deve mostrar a lista de material
+    if (showListaMaterial) {
+      return (
+        <ListaMaterial 
+          onBack={handleBackFromListaMaterial}
+          userRole={userRole}
+        />
+      )
+    }
+    
     // Se for instalador, mostrar apenas clientes
     if (userRole === 'instalador') {
       return (
@@ -3504,6 +3523,17 @@ const Welcome = () => {
                 >
                   <span className="nav-icon">📊</span>
                   <span className="nav-text">Medição</span>
+                </button>
+              )}
+              
+              {/* Menu Lista de Material - apenas para administradores e administrativos */}
+              {security.canAccessMenu(userRole, 'lista_material') && (
+                <button 
+                  onClick={() => setShowListaMaterial(true)} 
+                  className="nav-item"
+                >
+                  <span className="nav-icon">📋</span>
+                  <span className="nav-text">Lista de Material</span>
                 </button>
               )}
             </div>
