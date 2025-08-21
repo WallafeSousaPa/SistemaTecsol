@@ -3,6 +3,30 @@ import { supabase } from '../supabaseClient'
 import './ListaMaterial.css'
 
 const ListaMaterial = ({ onBack, userRole }) => {
+  // Função para formatar valores monetários no padrão brasileiro
+  const formatCurrency = (value) => {
+    if (value === null || value === undefined || isNaN(value)) {
+      return 'R$ 0,00'
+    }
+    return value.toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })
+  }
+
+  // Função para formatar valores sem o símbolo R$ (apenas números)
+  const formatNumber = (value) => {
+    if (value === null || value === undefined || isNaN(value)) {
+      return '0,00'
+    }
+    return value.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })
+  }
+
   const [clientes, setClientes] = useState([])
   const [selectedCliente, setSelectedCliente] = useState('')
   const [materialData, setMaterialData] = useState([])
@@ -592,81 +616,207 @@ const ListaMaterial = ({ onBack, userRole }) => {
 
       // Configurar fonte para caracteres especiais
       doc.setFont('helvetica')
+      
+      // Configurações de estilo profissional
+      const primaryColor = [33, 33, 33] // Cor principal escura
+      const secondaryColor = [66, 66, 66] // Cor secundária
+      const accentColor = [0, 123, 255] // Cor de destaque
+      const borderColor = [200, 200, 200] // Cor das bordas
 
-      // Título
-      doc.setFontSize(20)
-      doc.text('ORÇAMENTO TECSOL', 105, 20, { align: 'center' })
+      // Cabeçalho da empresa (lado esquerdo) - Design profissional
+      doc.setFontSize(18)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...primaryColor)
+      doc.text('R DE S BARROS JUNIOR LTDA', 20, 20)
+      
+      // Linha decorativa sob o nome da empresa
+      doc.setDrawColor(...accentColor)
+      doc.setLineWidth(0.5)
+      doc.line(20, 22, 100, 22)
+      
+      // Informações da empresa (lado esquerdo) - Estilo organizado
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(...secondaryColor)
+      
+      // CNPJ com ícone visual
+      doc.setFillColor(...accentColor)
+      doc.circle(18, 28, 1, 'F')
+      doc.text('CNPJ: 44.376.302/0001-34', 22, 30)
+      
+      // Endereço com ícone
+      doc.circle(18, 33, 1, 'F')
+      doc.text('PSG DONA ANA - BLOCO 4, APT 202', 22, 35)
+      
+      // Município
+      doc.circle(18, 38, 1, 'F')
+      doc.text('Ananindeua - PA', 22, 40)
+      
+      // Telefone com ícone
+      doc.circle(18, 43, 1, 'F')
+      doc.text('Tel: (91) 98211-3496', 22, 45)
+      
+      // E-mail com ícone
+      doc.circle(18, 48, 1, 'F')
+      doc.text('E-mail: tecsol.ananindeua@gmail.com', 22, 50)
 
-      // Informações do cliente
-      doc.setFontSize(12)
-      doc.text(`Cliente: ${pdfContent.cliente}`, 20, 40)
-      doc.text(`Data: ${pdfContent.data}`, 20, 50)
+      // Função para quebrar texto em múltiplas linhas
+      const wrapText = (text, maxWidth) => {
+        const words = text.split(' ')
+        const lines = []
+        let currentLine = ''
+        
+        words.forEach(word => {
+          const testLine = currentLine + (currentLine ? ' ' : '') + word
+          if (testLine.length <= maxWidth) {
+            currentLine = testLine
+          } else {
+            if (currentLine) lines.push(currentLine)
+            currentLine = word
+          }
+        })
+        if (currentLine) lines.push(currentLine)
+        
+        return lines
+      }
 
-      // Cabeçalho da tabela
+      // Informações do cliente (lado direito) - Design profissional
+      doc.setFontSize(14)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...accentColor)
+      doc.text('ORÇAMENTO TECSOL', 120, 20)
+      
+      // Linha decorativa sob o título
+      doc.setDrawColor(...accentColor)
+      doc.setLineWidth(0.3)
+      doc.line(120, 22, 180, 22)
+      
+      // Cliente com quebra de linha automática (máximo 25 caracteres por linha)
+      doc.setFontSize(11)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...primaryColor)
+      const clienteLines = wrapText(pdfContent.cliente, 25)
+      clienteLines.forEach((line, lineIndex) => {
+        doc.text(`${lineIndex === 0 ? 'Cliente: ' : ''}${line}`, 120, 35 + (lineIndex * 5))
+      })
+      
+      // Ajustar posição da data baseado no número de linhas do cliente
+      const dataPosition = 35 + (clienteLines.length * 5) + 5
       doc.setFontSize(10)
-      doc.text('Material', 20, 70)
-      doc.text('Qtd.', 110, 70)
-      doc.text('Valor Unit.', 130, 70)
-      doc.text('Valor Total', 160, 70)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(...secondaryColor)
+      doc.text(`Data: ${pdfContent.data}`, 120, dataPosition)
 
-      // Linha separadora
-      doc.line(20, 75, 190, 75)
+      // Calcular posição da linha separadora baseado no tamanho do cabeçalho
+      const separatorPosition = Math.max(60, dataPosition + 10)
+      
+      // Linha separadora principal - Estilo profissional
+      doc.setDrawColor(...borderColor)
+      doc.setLineWidth(1)
+      doc.line(20, separatorPosition, 190, separatorPosition)
+      
+      // Linha decorativa dupla
+      doc.setDrawColor(...accentColor)
+      doc.setLineWidth(0.3)
+      doc.line(20, separatorPosition + 2, 190, separatorPosition + 2)
+
+      // Cabeçalho da tabela - Design aprimorado
+      const tableHeaderPosition = separatorPosition + 10
+      doc.setFontSize(11)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...primaryColor)
+      
+      // Fundo do cabeçalho da tabela
+      doc.setFillColor(245, 245, 245)
+      doc.rect(20, tableHeaderPosition - 3, 170, 8, 'F')
+      
+      // Texto do cabeçalho
+      doc.text('Material', 20, tableHeaderPosition)
+      doc.text('Qtd.', 110, tableHeaderPosition)
+      doc.text('Valor Unit.', 130, tableHeaderPosition)
+      doc.text('Valor Total', 160, tableHeaderPosition)
+
+      // Linha separadora da tabela
+      doc.setDrawColor(...borderColor)
+      doc.setLineWidth(0.5)
+      doc.line(20, tableHeaderPosition + 5, 190, tableHeaderPosition + 5)
 
       // Itens
-      let yPosition = 85
-      pdfContent.itens.forEach((item, index) => {
-        if (yPosition > 250) {
-          doc.addPage()
-          yPosition = 20
-        }
+      let yPosition = tableHeaderPosition + 15
+             pdfContent.itens.forEach((item, index) => {
+         if (yPosition > 250) {
+           doc.addPage()
+           yPosition = 20
+         }
 
-        // Função para quebrar texto em múltiplas linhas
-        const wrapText = (text, maxWidth) => {
-          const words = text.split(' ')
-          const lines = []
-          let currentLine = ''
-          
-          words.forEach(word => {
-            const testLine = currentLine + (currentLine ? ' ' : '') + word
-            if (testLine.length <= maxWidth) {
-              currentLine = testLine
-            } else {
-              if (currentLine) lines.push(currentLine)
-              currentLine = word
-            }
-          })
-          if (currentLine) lines.push(currentLine)
-          
-          return lines
-        }
+
 
         // Material com quebra de linha automática (máximo 25 caracteres por linha)
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(...primaryColor)
         const materialLines = wrapText(item.material, 25)
         materialLines.forEach((line, lineIndex) => {
           doc.text(line, 20, yPosition + (lineIndex * 4))
         })
         
         // Quantidade (posicionada mais à direita, alinhada com o cabeçalho)
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(...accentColor)
         doc.text(item.quantidade.toString(), 110, yPosition)
         
         // Valor Unitário
-        doc.text(`R$ ${item.valor_unitario.toFixed(2)}`, 130, yPosition)
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(...secondaryColor)
+        doc.text(`R$ ${formatNumber(item.valor_unitario)}`, 130, yPosition)
         
         // Valor Total
-        doc.text(`R$ ${(item.valor_unitario * item.quantidade).toFixed(2)}`, 160, yPosition)
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(...primaryColor)
+        doc.text(`R$ ${formatNumber(item.valor_unitario * item.quantidade)}`, 160, yPosition)
 
         // Ajustar posição Y baseado no número de linhas do material
         yPosition += Math.max(10, materialLines.length * 4 + 2)
       })
 
-      // Linha separadora antes do total
+      // Linha separadora antes do total - Estilo profissional
+      doc.setDrawColor(...borderColor)
+      doc.setLineWidth(1)
       doc.line(20, yPosition + 5, 190, yPosition + 5)
+      
+      // Linha decorativa dupla
+      doc.setDrawColor(...accentColor)
+      doc.setLineWidth(0.3)
+      doc.line(20, yPosition + 7, 190, yPosition + 7)
 
-      // Total
-      doc.setFontSize(12)
+      // Total - Design destacado
+      doc.setFontSize(14)
       doc.setFont('helvetica', 'bold')
-      doc.text(`TOTAL: R$ ${pdfContent.total.toFixed(2)}`, 140, yPosition + 15)
+      doc.setTextColor(...accentColor)
+      
+      // Fundo do total
+      doc.setFillColor(245, 245, 245)
+      doc.rect(130, yPosition + 10, 60, 8, 'F')
+      
+      // Texto do total
+      doc.text(`TOTAL: R$ ${formatNumber(pdfContent.total)}`, 140, yPosition + 15)
 
+      // Rodapé profissional
+      const footerY = 280
+      doc.setDrawColor(...borderColor)
+      doc.setLineWidth(0.5)
+      doc.line(20, footerY, 190, footerY)
+      
+      // Informações do rodapé
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'italic')
+      doc.setTextColor(...secondaryColor)
+      doc.text('Documento gerado automaticamente pelo Sistema TecSol', 105, footerY + 5, { align: 'center' })
+      doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 105, footerY + 10, { align: 'center' })
+      
       // Salvar PDF
       const fileName = `orcamento_tecsol_${nomeCliente.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`
       doc.save(fileName)
@@ -829,15 +979,15 @@ const ListaMaterial = ({ onBack, userRole }) => {
             <div className="totals-grid">
               <div className="total-item resolve">
                 <span className="total-label">Total Resolve:</span>
-                <span className="total-value">R$ {totalResolve.toFixed(2)}</span>
+                <span className="total-value">{formatCurrency(totalResolve)}</span>
               </div>
               <div className="total-item tecsol">
                 <span className="total-label">Total TecSol:</span>
-                <span className="total-value">R$ {totalTecSol.toFixed(2)}</span>
+                <span className="total-value">{formatCurrency(totalTecSol)}</span>
               </div>
               <div className="total-item total-geral">
                 <span className="total-label">Total Geral:</span>
-                <span className="total-value">R$ {(totalResolve + totalTecSol).toFixed(2)}</span>
+                <span className="total-value">{formatCurrency(totalResolve + totalTecSol)}</span>
               </div>
             </div>
           </div>
@@ -904,7 +1054,7 @@ const ListaMaterial = ({ onBack, userRole }) => {
                       )}
                     </td>
                     <td className="valor-total">
-                      R$ {(item.valor_unitario * item.quantidade).toFixed(2)}
+                      {formatCurrency(item.valor_unitario * item.quantidade)}
                     </td>
                     <td>
                       <input
@@ -999,13 +1149,13 @@ const ListaMaterial = ({ onBack, userRole }) => {
                     {lista.total_resolve !== null && (
                       <>
                         <br />
-                        <strong>Total Resolve:</strong> R$ {lista.total_resolve?.toFixed(2) || '0.00'}
+                        <strong>Total Resolve:</strong> {formatCurrency(lista.total_resolve)}
                       </>
                     )}
                     {lista.total_tecsol !== null && (
                       <>
                         <br />
-                        <strong>Total TecSol:</strong> R$ {lista.total_tecsol?.toFixed(2) || '0.00'}
+                        <strong>Total TecSol:</strong> {formatCurrency(lista.total_tecsol)}
                       </>
                     )}
                   </div>
