@@ -43,6 +43,11 @@ const ListaMaterial = ({ onBack, userRole }) => {
   const [listasExistentes, setListasExistentes] = useState([])
   const [selectedLista, setSelectedLista] = useState('')
   const [showExistingListas, setShowExistingListas] = useState(false)
+  
+  // Estados para controlar edição vs nova lista
+  const [isEditing, setIsEditing] = useState(false)
+  const [editingListaId, setEditingListaId] = useState(null)
+  const [editingClienteId, setEditingClienteId] = useState(null)
 
   // Carregar clientes ao montar o componente
   useEffect(() => {
@@ -333,6 +338,14 @@ const ListaMaterial = ({ onBack, userRole }) => {
           setPreviewData(extractedData)
           setShowPreview(true)
           
+          // Se carregou um novo arquivo, não estamos mais editando
+          if (isEditing) {
+            setIsEditing(false)
+            setEditingListaId(null)
+            setEditingClienteId(null)
+            setSelectedCliente('')
+          }
+          
           let mensagem = `Processado com sucesso! ${extractedData.length} itens encontrados.`
           if (itensComValorHistorico > 0) {
             mensagem += ` ${itensComValorHistorico} itens tiveram valores históricos carregados automaticamente.`
@@ -381,8 +394,21 @@ const ListaMaterial = ({ onBack, userRole }) => {
 
   // Função para salvar lista de material
   const handleSaveLista = async () => {
-    if (!selectedCliente || materialData.length === 0) {
-      setMessage('Selecione um cliente e adicione itens de material')
+    // Verificar se temos dados válidos
+    if (materialData.length === 0) {
+      setMessage('Adicione itens de material antes de salvar')
+      setMessageType('error')
+      return
+    }
+
+    // Verificar cliente
+    let clienteId = selectedCliente
+    if (isEditing && editingClienteId) {
+      clienteId = editingClienteId
+    }
+    
+    if (!clienteId) {
+      setMessage('Selecione um cliente para salvar a lista')
       setMessageType('error')
       return
     }
@@ -395,42 +421,99 @@ const ListaMaterial = ({ onBack, userRole }) => {
       // Calcular totais antes de salvar
       const { totalResolve, totalTecSol } = calculateTotals()
 
-      // Criar lista de material
-      const { data: listaData, error: listaError } = await supabase
-        .from('lista_material')
-        .insert({
-          cliente_id: selectedCliente,
-          observacoes: `Importado de planilha - ${new Date().toLocaleDateString('pt-BR')}`,
-          total_resolve: totalResolve,
-          total_tecsol: totalTecSol
-        })
-        .select()
-        .single()
+      if (isEditing && editingListaId) {
+        // ATUALIZAR LISTA EXISTENTE
+        setMessage('Atualizando lista existente...')
+        
+        // Atualizar a lista principal
+        const { error: listaError } = await supabase
+          .from('lista_material')
+          .update({
+            observacoes: `Editado em ${new Date().toLocaleDateString('pt-BR')}`,
+            total_resolve: totalResolve,
+            total_tecsol: totalTecSol
+          })
+          .eq('id', editingListaId)
 
-      if (listaError) throw listaError
+        if (listaError) throw listaError
 
-      // Inserir itens de material
-      const itensToInsert = materialData.map(item => ({
-        lista_material_id: listaData.id,
-        material: item.material,
-        quantidade: item.quantidade,
-        classe: item.classe,
-        valor_unitario: item.valor_unitario,
-        resolve_forneceu: item.resolve_forneceu,
-        tecsol_forneceu: item.tecsol_forneceu
-      }))
+        // Excluir itens antigos
+        const { error: deleteError } = await supabase
+          .from('itens_material')
+          .delete()
+          .eq('lista_material_id', editingListaId)
 
-      const { error: itensError } = await supabase
-        .from('itens_material')
-        .insert(itensToInsert)
+        if (deleteError) throw deleteError
 
-      if (itensError) throw itensError
+        // Inserir novos itens
+        const itensToInsert = materialData.map(item => ({
+          lista_material_id: editingListaId,
+          material: item.material,
+          quantidade: item.quantidade,
+          classe: item.classe,
+          valor_unitario: item.valor_unitario,
+          resolve_forneceu: item.resolve_forneceu,
+          tecsol_forneceu: item.tecsol_forneceu
+        }))
 
-      setMessage('Lista de material salva com sucesso!')
-      setMessageType('success')
+        const { error: itensError } = await supabase
+          .from('itens_material')
+          .insert(itensToInsert)
+
+        if (itensError) throw itensError
+
+        setMessage('Lista de material atualizada com sucesso!')
+        setMessageType('success')
+        
+        // Limpar estado de edição
+        setIsEditing(false)
+        setEditingListaId(null)
+        setEditingClienteId(null)
+
+      } else {
+        // CRIAR NOVA LISTA
+        setMessage('Criando nova lista de material...')
+        
+        // Criar lista de material
+        const { data: listaData, error: listaError } = await supabase
+          .from('lista_material')
+          .insert({
+            cliente_id: clienteId,
+            observacoes: `Importado de planilha - ${new Date().toLocaleDateString('pt-BR')}`,
+            total_resolve: totalResolve,
+            total_tecsol: totalTecSol
+          })
+          .select()
+          .single()
+
+        if (listaError) throw listaError
+
+        // Inserir itens de material
+        const itensToInsert = materialData.map(item => ({
+          lista_material_id: listaData.id,
+          material: item.material,
+          quantidade: item.quantidade,
+          classe: item.classe,
+          valor_unitario: item.valor_unitario,
+          resolve_forneceu: item.resolve_forneceu,
+          tecsol_forneceu: item.tecsol_forneceu
+        }))
+
+        const { error: itensError } = await supabase
+          .from('itens_material')
+          .insert(itensToInsert)
+
+        if (itensError) throw itensError
+
+        setMessage('Nova lista de material criada com sucesso!')
+        setMessageType('success')
+      }
+
+      // Limpar dados e recarregar listas
       setMaterialData([])
-      setSelectedCliente('')
+      setPreviewData([])
       setShowPreview(false)
+      setSelectedCliente('')
       fetchListasExistentes()
 
       // Limpar arquivo
@@ -451,6 +534,17 @@ const ListaMaterial = ({ onBack, userRole }) => {
   const handleLoadLista = async (listaId) => {
     try {
       setIsLoading(true)
+      
+      // Primeiro buscar informações da lista para obter o cliente_id
+      const { data: listaInfo, error: listaError } = await supabase
+        .from('lista_material')
+        .select('cliente_id')
+        .eq('id', listaId)
+        .single()
+
+      if (listaError) throw listaError
+
+      // Buscar os itens da lista
       const { data, error } = await supabase
         .from('itens_material')
         .select('*')
@@ -458,10 +552,16 @@ const ListaMaterial = ({ onBack, userRole }) => {
 
       if (error) throw error
 
+      // Configurar estado de edição
+      setIsEditing(true)
+      setEditingListaId(listaId)
+      setEditingClienteId(listaInfo.cliente_id)
+      setSelectedCliente(listaInfo.cliente_id)
+
       setMaterialData(data || [])
       setPreviewData(data || [])
       setShowPreview(true)
-      setMessage('Lista carregada com sucesso!')
+      setMessage('Lista carregada para edição!')
       setMessageType('success')
 
     } catch (error) {
@@ -528,6 +628,10 @@ const ListaMaterial = ({ onBack, userRole }) => {
         setPreviewData([])
         setShowPreview(false)
         setSelectedCliente('')
+        // Limpar estado de edição também
+        setIsEditing(false)
+        setEditingListaId(null)
+        setEditingClienteId(null)
       }
 
     } catch (error) {
@@ -543,6 +647,12 @@ const ListaMaterial = ({ onBack, userRole }) => {
   const handleEditItem = (index, field, value) => {
     const newData = [...materialData]
     newData[index][field] = value
+    
+    // Preservar o lista_material_id se estivermos editando
+    if (isEditing && editingListaId && !newData[index].lista_material_id) {
+      newData[index].lista_material_id = editingListaId
+    }
+    
     setMaterialData(newData)
     setPreviewData(newData)
   }
@@ -550,6 +660,16 @@ const ListaMaterial = ({ onBack, userRole }) => {
   // Função para remover item
   const handleRemoveItem = (index) => {
     const newData = materialData.filter((_, i) => i !== index)
+    
+    // Preservar o lista_material_id nos itens restantes se estivermos editando
+    if (isEditing && editingListaId) {
+      newData.forEach(item => {
+        if (!item.lista_material_id) {
+          item.lista_material_id = editingListaId
+        }
+      })
+    }
+    
     setMaterialData(newData)
     setPreviewData(newData)
   }
@@ -564,6 +684,12 @@ const ListaMaterial = ({ onBack, userRole }) => {
       resolve_forneceu: false,
       tecsol_forneceu: false
     }
+    
+    // Se estamos editando, adicionar o ID da lista
+    if (isEditing && editingListaId) {
+      newItem.lista_material_id = editingListaId
+    }
+    
     setMaterialData([...materialData, newItem])
     setPreviewData([...previewData, newItem])
   }
@@ -852,6 +978,14 @@ const ListaMaterial = ({ onBack, userRole }) => {
         </div>
       )}
 
+      {/* Indicador de Edição */}
+      {isEditing && (
+        <div className="editing-indicator">
+          <h3>✏️ Editando Lista Existente</h3>
+          <p>Você está editando uma lista existente. As alterações serão aplicadas à lista atual.</p>
+        </div>
+      )}
+
       {/* Seleção de Cliente */}
       <div className="form-section">
         <h3>👤 Selecionar Cliente</h3>
@@ -860,7 +994,7 @@ const ListaMaterial = ({ onBack, userRole }) => {
             value={selectedCliente}
             onChange={(e) => setSelectedCliente(e.target.value)}
             className="form-select"
-            disabled={isLoading}
+            disabled={isLoading || isEditing}
           >
             <option value="">Selecione um cliente...</option>
             {clientes.map(cliente => (
@@ -879,6 +1013,13 @@ const ListaMaterial = ({ onBack, userRole }) => {
             🔄
           </button>
         </div>
+        
+        {isEditing && (
+          <div className="cliente-info">
+            <p><strong>Cliente:</strong> {clientes.find(c => c.id === editingClienteId)?.nome_cliente}</p>
+            <p><em>O cliente não pode ser alterado durante a edição. Use o botão "Nova Lista" para criar uma lista para outro cliente.</em></p>
+          </div>
+        )}
         
         {clientes.length === 0 && !isLoading && (
           <div className="no-clients-message">
@@ -1098,8 +1239,26 @@ const ListaMaterial = ({ onBack, userRole }) => {
               onClick={handleSaveLista}
               disabled={isLoading || !selectedCliente || materialData.length === 0}
             >
-              {isLoading ? 'Salvando...' : '💾 Salvar Lista de Material'}
+              {isLoading ? 'Salvando...' : isEditing ? '💾 Atualizar Lista' : '💾 Salvar Nova Lista'}
             </button>
+            
+            {isEditing && (
+              <button
+                className="new-list-button"
+                onClick={() => {
+                  setIsEditing(false)
+                  setEditingListaId(null)
+                  setEditingClienteId(null)
+                  setSelectedCliente('')
+                  setMessage('Modo de nova lista ativado. Selecione um cliente para criar uma nova lista.')
+                  setMessageType('info')
+                }}
+                disabled={isLoading}
+                title="Criar nova lista em vez de editar a atual"
+              >
+                📝 Nova Lista
+              </button>
+            )}
             
             <button
               className="clear-button"
@@ -1109,6 +1268,11 @@ const ListaMaterial = ({ onBack, userRole }) => {
                 setShowPreview(false)
                 setDetectedHeaders([])
                 setHeaderMapping({})
+                // Limpar estado de edição
+                setIsEditing(false)
+                setEditingListaId(null)
+                setEditingClienteId(null)
+                setSelectedCliente('')
                 if (fileInputRef.current) fileInputRef.current.value = ''
               }}
               disabled={isLoading}
