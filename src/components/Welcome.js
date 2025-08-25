@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { validators, security, USER_ROLES } from '../config/security'
+import * as XLSX from 'xlsx'
 import ListaMaterial from './ListaMaterial'
 import './Welcome.css'
 
@@ -749,8 +750,8 @@ const Welcome = () => {
      }
    }
    
-   // Exportar medição para Excel
-   const exportarMedicaoExcel = () => {
+   // Exportar medição para CSV
+   const exportarMedicaoCSV = () => {
      if (medicaoData.length === 0) {
        showNotification('Não há dados para exportar!', 'warning')
        return
@@ -803,10 +804,93 @@ const Welcome = () => {
        link.click()
        document.body.removeChild(link)
        
-       showNotification('Relatório exportado com sucesso!', 'success')
+       showNotification('Relatório CSV exportado com sucesso!', 'success')
      } catch (error) {
-       console.error('Erro ao exportar medição:', error)
-       showNotification('Erro ao exportar medição: ' + error.message, 'error')
+       console.error('Erro ao exportar medição CSV:', error)
+       showNotification('Erro ao exportar medição CSV: ' + error.message, 'error')
+     }
+   }
+
+   // Exportar medição para Excel
+   const exportarMedicaoExcel = () => {
+     if (medicaoData.length === 0) {
+       showNotification('Não há dados para exportar!', 'warning')
+       return
+     }
+     
+     try {
+       // Criar cabeçalho do Excel
+       const headers = [
+         'CLIENTE',
+         'DATA DE INSTALAÇÃO',
+         'TIPO DE SERVIÇO',
+         'QTD MÓDULOS',
+         'PADRÃO',
+         'CONFIG. INVERSOR',
+         'DESLOCAMENTO',
+         'NOTA MATERIAL',
+         'OBRA CIVIL',
+         'EQUIPE',
+         'VALOR OBRA',
+         'VALOR MATERIAL',
+         'COMPRAS',
+         'TOTAL',
+         'OBSERVAÇÃO'
+       ]
+       
+       // Criar linhas de dados
+       const rows = medicaoData.map(item => [
+         item.cliente,
+         new Date(item.data).toLocaleDateString('pt-BR'),
+         item.tipo_servico,
+         item.qtd_modulos,
+         item.padrao,
+         item.configuracao_inversor,
+         item.deslocamento_buscar_material,
+         item.nota_material,
+         item.obra_civil,
+         item.equipe,
+         `R$ ${(item.valor_obra || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+         `R$ ${(item.valor_material || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+         `R$ ${(item.valor_compras || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+         `R$ ${item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+         item.observacao
+       ])
+       
+       // Criar workbook e worksheet
+       const wb = XLSX.utils.book_new()
+       const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
+       
+       // Ajustar largura das colunas
+       const colWidths = [
+         { wch: 25 }, // CLIENTE
+         { wch: 15 }, // DATA DE INSTALAÇÃO
+         { wch: 20 }, // TIPO DE SERVIÇO
+         { wch: 12 }, // QTD MÓDULOS
+         { wch: 15 }, // PADRÃO
+         { wch: 15 }, // CONFIG. INVERSOR
+         { wch: 15 }, // DESLOCAMENTO
+         { wch: 15 }, // NOTA MATERIAL
+         { wch: 12 }, // OBRA CIVIL
+         { wch: 15 }, // EQUIPE
+         { wch: 15 }, // VALOR OBRA
+         { wch: 15 }, // VALOR MATERIAL
+         { wch: 15 }, // COMPRAS
+         { wch: 15 }, // TOTAL
+         { wch: 40 }  // OBSERVAÇÃO
+       ]
+       ws['!cols'] = colWidths
+       
+       // Adicionar worksheet ao workbook
+       XLSX.utils.book_append_sheet(wb, ws, 'Medição TecSol')
+       
+       // Gerar arquivo Excel e baixar
+       XLSX.writeFile(wb, `medicao_tecsol_${medicaoPeriodo.inicio}_${medicaoPeriodo.fim}.xlsx`)
+       
+       showNotification('Relatório Excel exportado com sucesso!', 'success')
+     } catch (error) {
+       console.error('Erro ao exportar medição Excel:', error)
+       showNotification('Erro ao exportar medição Excel: ' + error.message, 'error')
      }
    }
    
@@ -1013,9 +1097,26 @@ const Welcome = () => {
         `)
         .gte('data_cadastro', medicaoPeriodo.inicio)
         .lte('data_cadastro', medicaoPeriodo.fim)
-        .order('data_cadastro', { ascending: false })
+        .order('data_instalacao', { ascending: false })
 
       if (clientesError) throw clientesError
+
+      // Buscar valores de compras (total_tecsol) da tabela lista_material para cada cliente
+      const valoresCompras = {}
+      for (const cliente of clientes) {
+        const { data: listasMaterial, error: listasError } = await supabase
+          .from('lista_material')
+          .select('total_tecsol')
+          .eq('cliente_id', cliente.id)
+        
+        if (!listasError && listasMaterial) {
+          // Somar todos os valores total_tecsol para este cliente
+          const totalCompras = listasMaterial.reduce((sum, lista) => sum + (lista.total_tecsol || 0), 0)
+          valoresCompras[cliente.id] = totalCompras
+        } else {
+          valoresCompras[cliente.id] = 0
+        }
+      }
 
       // Processar dados para medição
       const medicaoProcessada = clientes.map(cliente => {
@@ -1026,20 +1127,25 @@ const Welcome = () => {
         const valorNotaMaterial = cliente.nota_material ? 0 : 0
         const valorObraCivil = cliente.valor_obra || 0
         const valorMaterial = cliente.valor_material || 0
+        const valorCompras = valoresCompras[cliente.id] || 0
         
-        // Calcular total
+        // Calcular total incluindo compras
         const total = (90 * (cliente.quantidade_modulos || 0)) + 
                      valorPadrao + 
                      valorInversor + 
                      valorDeslocamento + 
                      valorNotaMaterial + 
                      valorObraCivil + 
-                     valorMaterial
+                     valorMaterial +
+                     valorCompras
+
+        // Criar objeto com data corrigida
+        const dataProcessada = cliente.data_instalacao ? new Date(cliente.data_instalacao + 'T00:00:00') : (cliente.data_cadastro ? new Date(cliente.data_cadastro + 'T00:00:00') : new Date())
 
         return {
           id: cliente.id,
           cliente: cliente.nome_cliente,
-          data: cliente.data_instalacao,
+          data: dataProcessada,
           tipo_servico: cliente.tipo_servico?.nome || 'N/A',
           qtd_modulos: cliente.quantidade_modulos || 0,
           padrao: cliente.tipo_padrao?.nome || 'N/A',
@@ -1056,6 +1162,7 @@ const Welcome = () => {
           valor_deslocamento: valorDeslocamento,
           valor_nota_material: valorNotaMaterial,
           valor_obra_civil: valorObraCivil,
+          valor_compras: valorCompras,
           // Valores editáveis
           valor_obra: cliente.valor_obra || 0,
           valor_material: cliente.valor_material || 0
@@ -2848,6 +2955,9 @@ const Welcome = () => {
          
          {security.canExportMedicao(userRole) && (
            <div className="export-controls">
+             <button onClick={() => exportarMedicaoCSV()} className="action-button secondary">
+               📄 Exportar CSV
+             </button>
              <button onClick={() => exportarMedicaoExcel()} className="action-button secondary">
                📊 Exportar Excel
              </button>
@@ -2872,6 +2982,12 @@ const Welcome = () => {
              {medicaoData.reduce((sum, item) => sum + item.qtd_modulos, 0)}
            </span>
          </div>
+         <div className="summary-card compras-card">
+           <h4>Total de Compras TecSol</h4>
+           <span className="summary-value compras-value">
+             R$ {medicaoData.reduce((sum, item) => sum + (item.valor_compras || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+           </span>
+         </div>
        </div>
        
        <div className="medicao-list">
@@ -2887,7 +3003,7 @@ const Welcome = () => {
                <thead>
                  <tr>
                    <th>CLIENTE</th>
-                   <th>DATA</th>
+                   <th>DATA DE INSTALAÇÃO</th>
                    <th>TIPO DE SERVIÇO</th>
                    <th>QTD MÓDULOS</th>
                    <th>PADRÃO</th>
@@ -2897,6 +3013,7 @@ const Welcome = () => {
                    <th>OBRA CIVIL</th>
                    <th>VALOR OBRA</th>
                    <th>VALOR MATERIAL</th>
+                   <th>COMPRAS</th>
                    <th>TOTAL</th>
                    <th>OBSERVAÇÃO</th>
                  </tr>
@@ -2904,15 +3021,15 @@ const Welcome = () => {
                <tbody>
                  {medicaoData.length === 0 ? (
                    <tr>
-                     <td colSpan="13" className="no-data">
-                       Nenhum dado de medição encontrado para o período selecionado.
-                     </td>
+                                        <td colSpan="14" className="no-data">
+                     Nenhum dado de medição encontrado para o período selecionado.
+                   </td>
                    </tr>
                  ) : (
                    medicaoData.map((item) => (
                      <tr key={item.id}>
                        <td>{item.cliente}</td>
-                       <td>{new Date(item.data).toLocaleDateString('pt-BR')}</td>
+                       <td>{item.data ? new Date(item.data).toLocaleDateString('pt-BR') : 'N/A'}</td>
                        <td>{item.tipo_servico}</td>
                        <td className="text-center">{item.qtd_modulos}</td>
                        <td>{item.padrao}</td>
@@ -2949,6 +3066,9 @@ const Welcome = () => {
                              placeholder="0,00"
                            />
                          </div>
+                       </td>
+                       <td className="text-center compras-value">
+                         R$ {item.valor_compras.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                        </td>
                        <td className="text-center total-value">
                          R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}

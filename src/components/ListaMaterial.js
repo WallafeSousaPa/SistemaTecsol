@@ -115,7 +115,7 @@ const ListaMaterial = ({ onBack, userRole }) => {
     }
   }
 
-    // Função para buscar valor histórico do material
+  // Função para buscar valor histórico do material
   const buscarValorHistorico = async (nomeMaterial) => {
     try {
       // Normalizar o nome do material para busca
@@ -621,7 +621,7 @@ const ListaMaterial = ({ onBack, userRole }) => {
       
       // Recarregar listas existentes
       fetchListasExistentes()
-      
+
       // Se a lista excluída estava carregada, limpar a interface
       if (materialData.length > 0 && materialData[0]?.lista_material_id === listaId) {
         setMaterialData([])
